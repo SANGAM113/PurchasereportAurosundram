@@ -4732,7 +4732,7 @@ function fetchImportData(){
   var unit = g('fWtUnit').value||'KG';
   var rateKg = unit==='MT'?contractRate/1000:(unit==='QTL'?contractRate/100:contractRate);
   var resultsEl=g('importResults');
-  resultsEl.innerHTML='<div style="color:#64748b;padding:10px 0">Fetching...</div>';
+  resultsEl.innerHTML='<div style="color:#64748b;padding:10px 0">Fetching... (matching against Contract Rate: ₹'+rateKg.toFixed(2)+'/kg — from Rate '+contractRate+' '+unit+')</div>';
   fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
     action:'importSource', sourceSheetId:SOURCE_CONFIG.SHEET_ID, sourceGid:SOURCE_CONFIG.GID,
     vendor:vendor, item:material, months:months, rateKg:rateKg
@@ -4741,6 +4741,7 @@ function fetchImportData(){
     .then(function(res){
       if(!res.ok){ resultsEl.innerHTML='<div style="color:#dc2626">Fetch failed: '+(res.error||'unknown')+'</div>'; return; }
       IMPORT_STATE.lastFetched = res.rows||[];
+      IMPORT_STATE.lastRateKg = rateKg;
       renderImportPreview();
     }).catch(function(){ resultsEl.innerHTML='<div style="color:#dc2626">Fetch failed — no connection</div>'; });
 }
@@ -4753,7 +4754,7 @@ function renderImportPreview(){
   var existingInvNos = {};
   rows.forEach(function(r){ if(r.inv_no) existingInvNos[String(r.inv_no).trim().toLowerCase()]=true; });
 
-  var html = '<div style="font-size:12.5px;color:#334155;margin-bottom:8px"><b>'+fetched.length+' row(s) found</b> (Vendor + Item + Rate + Month sab exact match kiye). Review and uncheck any you don\'t want to import.</div>';
+  var html = '<div style="font-size:12.5px;color:#334155;margin-bottom:8px"><b>'+fetched.length+' row(s) found</b> — matched against Contract Rate ₹'+(IMPORT_STATE.lastRateKg||0).toFixed(2)+'/kg (exact). Review and uncheck any you don\'t want to import.</div>';
   html += '<div style="max-height:280px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:11.5px">';
   html += '<thead><tr style="background:#f1f5f9;position:sticky;top:0"><th style="padding:6px"></th><th style="padding:6px;text-align:left">Invoice No</th><th style="padding:6px;text-align:left">Date</th><th style="padding:6px;text-align:left">Vehicle</th><th style="padding:6px;text-align:right">Inv Wt</th><th style="padding:6px;text-align:right">GRN Wt</th><th style="padding:6px;text-align:right">Rate</th></tr></thead><tbody>';
