@@ -4524,7 +4524,7 @@ function generateSelectedReportExcel(){
 // ═══════════════════════════════════════
 var CLOUD_CONFIG = {
   // PASTE your deployed Google Apps Script Web App URL here after setup:
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzZiHQqKtkYkwZZyy9F_n_8X-35xOcEHWL4gF8U_Te8GWJUDCr908YM6KkHNUov0kdb/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycby-FpUTDLTpj8l9jyJ4kB0yudK3jotGmBVTzYgi4tZMvZJ0wpfWjOx6FNZ7Uu6aNQXw/exec',
   // 🔓 TEMPORARY: set to false to skip login screen entirely while testing.
   // Set back to true before sharing with the team!
   REQUIRE_LOGIN: false
@@ -4552,7 +4552,7 @@ function cloudLogin(){
   var errEl = g('cloudLoginErr');
   errEl.style.display='none';
   if(!user || !pass){ errEl.textContent='Username and password required'; errEl.style.display='block'; return; }
-  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycbzZiHQqKtkYkwZZyy9F_n_8X-35xOcEHWL4gF8U_Te8GWJUDCr908YM6KkHNUov0kdb/exec'){
+  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycby-FpUTDLTpj8l9jyJ4kB0yudK3jotGmBVTzYgi4tZMvZJ0wpfWjOx6FNZ7Uu6aNQXw/exec'){
     errEl.textContent='Backend not configured yet. See setup instructions.'; errEl.style.display='block'; return;
   }
   var btn=g('cloudLoginBtn'); btn.disabled=true; btn.textContent='Logging in...';
@@ -4753,7 +4753,7 @@ function renderImportPreview(){
   var existingInvNos = {};
   rows.forEach(function(r){ if(r.inv_no) existingInvNos[String(r.inv_no).trim().toLowerCase()]=true; });
 
-  var html = '<div style="font-size:12.5px;color:#334155;margin-bottom:8px"><b>'+fetched.length+' row(s) found</b> (Vendor + Item + Rate + Month sab match kiye — ±2% rate tolerance ke saath). Review and uncheck any you don\'t want to import.</div>';
+  var html = '<div style="font-size:12.5px;color:#334155;margin-bottom:8px"><b>'+fetched.length+' row(s) found</b> (Vendor + Item + Rate + Month sab exact match kiye). Review and uncheck any you don\'t want to import.</div>';
   html += '<div style="max-height:280px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:11.5px">';
   html += '<thead><tr style="background:#f1f5f9;position:sticky;top:0"><th style="padding:6px"></th><th style="padding:6px;text-align:left">Invoice No</th><th style="padding:6px;text-align:left">Date</th><th style="padding:6px;text-align:left">Vehicle</th><th style="padding:6px;text-align:right">Inv Wt</th><th style="padding:6px;text-align:right">GRN Wt</th><th style="padding:6px;text-align:right">Rate</th></tr></thead><tbody>';
@@ -4944,7 +4944,7 @@ function renderBulkImportPreview(){
     html += '</tbody></table></details>';
   });
   html += '<button onclick="applyBulkImport()" style="width:100%;padding:9px;background:#15803d;color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;margin-top:6px">✓ Import All Selected Rows</button>';
-  html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">🟡 Yellow = already in that tab (unchecked by default) · Vendor+Item+Rate+Month sab match kiye hain (±2% rate tolerance)</div>';
+  html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">🟡 Yellow = already in that tab (unchecked by default) · Vendor+Item+Rate+Month sab exact match kiye hain</div>';
   resultsEl.innerHTML = html;
 }
 
