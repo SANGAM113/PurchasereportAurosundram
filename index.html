@@ -4552,7 +4552,7 @@ function cloudLogin(){
   var errEl = g('cloudLoginErr');
   errEl.style.display='none';
   if(!user || !pass){ errEl.textContent='Username and password required'; errEl.style.display='block'; return; }
-  if(_cloudUrl()==='PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'){
+  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycbzZiHQqKtkYkwZZyy9F_n_8X-35xOcEHWL4gF8U_Te8GWJUDCr908YM6KkHNUov0kdb/exec'){
     errEl.textContent='Backend not configured yet. See setup instructions.'; errEl.style.display='block'; return;
   }
   var btn=g('cloudLoginBtn'); btn.disabled=true; btn.textContent='Logging in...';
