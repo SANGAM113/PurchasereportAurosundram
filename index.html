@@ -4732,7 +4732,7 @@ function fetchImportData(){
   resultsEl.innerHTML='<div style="color:#64748b;padding:10px 0">Fetching...</div>';
   fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
     action:'importSource', sourceSheetId:SOURCE_CONFIG.SHEET_ID, sourceGid:SOURCE_CONFIG.GID,
-    vendor:vendor, item:material,rate:contractrate, months:months
+    vendor:vendor, item:material,rate:fRate, months:months
   })})
     .then(function(r){return r.json();})
     .then(function(res){
