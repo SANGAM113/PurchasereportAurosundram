@@ -4777,7 +4777,7 @@ function renderImportPreview(){
 }
 
 function autoSaveBeforeImport(cb){
-  if(_cloudUrl()==='PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'){ cb(); return; }
+  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycby-FpUTDLTpj8l9jyJ4kB0yudK3jotGmBVTzYgi4tZMvZJ0wpfWjOx6FNZ7Uu6aNQXw/exec'){ cb(); return; }
   saveTab();
   var payload = { action:'saveData', username: CLOUD.user, baseVersion: CLOUD.version, force:true,
     data:{ reports:reports, activeTab:activeTab, tabIdCtr:tabIdCtr,
@@ -4817,7 +4817,7 @@ function applySelectedImport(){
 }
 
 function logImportEvent(count){
-  if(_cloudUrl()==='PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') return;
+  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycby-FpUTDLTpj8l9jyJ4kB0yudK3jotGmBVTzYgi4tZMvZJ0wpfWjOx6FNZ7Uu6aNQXw/exec') return;
   fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
     action:'logEvent', username:CLOUD.user, eventType:'IMPORT',
     details:'Imported '+count+' rows for '+g('fVendor').value+' / '+g('fMaterial').value
