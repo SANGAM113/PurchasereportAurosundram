@@ -4524,7 +4524,7 @@ function generateSelectedReportExcel(){
 // ═══════════════════════════════════════
 var CLOUD_CONFIG = {
   // PASTE your deployed Google Apps Script Web App URL here after setup:
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbze0o7PWGgVt188vp24hXKCJzc7M8z8dOnljd8rpsf7nsFCjbM7YqaqvqLQR6CowRPE/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzZiHQqKtkYkwZZyy9F_n_8X-35xOcEHWL4gF8U_Te8GWJUDCr908YM6KkHNUov0kdb/exec',
   // 🔓 TEMPORARY: set to false to skip login screen entirely while testing.
   // Set back to true before sharing with the team!
   REQUIRE_LOGIN: false
@@ -4728,11 +4728,14 @@ function fetchImportData(){
   var months=[]; document.querySelectorAll('.impMonthChk:checked').forEach(function(c){months.push(c.value);});
   if(!months.length){ toast('Select at least 1 month','error'); return; }
   var vendor=g('fVendor').value.trim(), material=g('fMaterial').value.trim();
+  var contractRate = +g('fRate').value||0;
+  var unit = g('fWtUnit').value||'KG';
+  var rateKg = unit==='MT'?contractRate/1000:(unit==='QTL'?contractRate/100:contractRate);
   var resultsEl=g('importResults');
   resultsEl.innerHTML='<div style="color:#64748b;padding:10px 0">Fetching...</div>';
   fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
     action:'importSource', sourceSheetId:SOURCE_CONFIG.SHEET_ID, sourceGid:SOURCE_CONFIG.GID,
-    vendor:vendor, item:material,rate:fRate, months:months
+    vendor:vendor, item:material, months:months, rateKg:rateKg
   })})
     .then(function(r){return r.json();})
     .then(function(res){
@@ -4750,19 +4753,13 @@ function renderImportPreview(){
   var existingInvNos = {};
   rows.forEach(function(r){ if(r.inv_no) existingInvNos[String(r.inv_no).trim().toLowerCase()]=true; });
 
-  var contractRate = +g('fRate').value||0;
-  var unit = g('fWtUnit').value||'KG';
-  var contractRateKg = unit==='MT'?contractRate/1000:(unit==='QTL'?contractRate/100:contractRate);
-
-  var html = '<div style="font-size:12.5px;color:#334155;margin-bottom:8px"><b>'+fetched.length+' row(s) found.</b> Review and uncheck any you don\'t want to import.</div>';
+  var html = '<div style="font-size:12.5px;color:#334155;margin-bottom:8px"><b>'+fetched.length+' row(s) found</b> (Vendor + Item + Rate + Month sab match kiye — ±2% rate tolerance ke saath). Review and uncheck any you don\'t want to import.</div>';
   html += '<div style="max-height:280px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:11.5px">';
   html += '<thead><tr style="background:#f1f5f9;position:sticky;top:0"><th style="padding:6px"></th><th style="padding:6px;text-align:left">Invoice No</th><th style="padding:6px;text-align:left">Date</th><th style="padding:6px;text-align:left">Vehicle</th><th style="padding:6px;text-align:right">Inv Wt</th><th style="padding:6px;text-align:right">GRN Wt</th><th style="padding:6px;text-align:right">Rate</th></tr></thead><tbody>';
   fetched.forEach(function(row,idx){
     var isDupe = row.invNo && existingInvNos[String(row.invNo).trim().toLowerCase()];
-    var rowRateKg = +row.rate||0;
-    var rateMismatch = contractRateKg>0 && rowRateKg>0 && Math.abs(rowRateKg-contractRateKg)/contractRateKg > 0.02;
-    var rowStyle = isDupe ? 'background:#fef3c7' : (rateMismatch ? 'background:#fee2e2' : '');
+    var rowStyle = isDupe ? 'background:#fef3c7' : '';
     html += '<tr style="'+rowStyle+';border-bottom:1px solid #f1f5f9">'
       + '<td style="padding:5px;text-align:center"><input type="checkbox" class="impRowChk" data-idx="'+idx+'" '+(isDupe?'':'checked')+'></td>'
       + '<td style="padding:5px">'+(row.invNo||'—')+(isDupe?' <span style="color:#b45309;font-size:10px">(dupe)</span>':'')+'</td>'
@@ -4770,12 +4767,12 @@ function renderImportPreview(){
       + '<td style="padding:5px">'+(row.vehNo||'—')+'</td>'
       + '<td style="padding:5px;text-align:right">'+(row.invWt||'—')+'</td>'
       + '<td style="padding:5px;text-align:right">'+(row.grnWt||'—')+'</td>'
-      + '<td style="padding:5px;text-align:right">'+(row.rate||'—')+(rateMismatch?' <span style="color:#dc2626;font-size:10px">⚠</span>':'')+'</td>'
+      + '<td style="padding:5px;text-align:right">'+(row.rate||'—')+'</td>'
       + '</tr>';
   });
   html += '</tbody></table></div>';
   html += '<div style="margin-top:12px"><button onclick="applySelectedImport()" style="width:100%;padding:9px;background:#15803d;color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer">✓ Import Selected Rows</button></div>';
-  html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">🟡 Yellow = already in table (unchecked by default) · 🔴 Red = rate differs 2%+ from Contract Rate</div>';
+  html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">🟡 Yellow = already in table (unchecked by default)</div>';
   resultsEl.innerHTML = html;
 }
 
@@ -4893,9 +4890,11 @@ function fetchBulkImportData(){
 
   var fetches = tabIdxs.map(function(idx){
     var rep=reports[idx];
+    var cRate=+rep.fRate||0, u=rep.fWtUnit||'KG';
+    var rateKg = u==='MT'?cRate/1000:(u==='QTL'?cRate/100:cRate);
     return fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
       action:'importSource', sourceSheetId:SOURCE_CONFIG.SHEET_ID, sourceGid:SOURCE_CONFIG.GID,
-      vendor:(rep.fVendor||'').trim(), item:(rep.fMaterial||'').trim(), months:months
+      vendor:(rep.fVendor||'').trim(), item:(rep.fMaterial||'').trim(), months:months, rateKg:rateKg
     })}).then(function(r){return r.json();}).then(function(res){
       return { idx:idx, ok:res.ok, rows:res.rows||[], error:res.error };
     }).catch(function(){ return { idx:idx, ok:false, rows:[], error:'Network error' }; });
@@ -4925,8 +4924,6 @@ function renderBulkImportPreview(){
       return;
     }
     var existingInvNos={}; (rep.rows||[]).forEach(function(r){ if(r.inv_no) existingInvNos[String(r.inv_no).trim().toLowerCase()]=true; });
-    var contractRate=+rep.fRate||0, unit=rep.fWtUnit||'KG';
-    var contractRateKg = unit==='MT'?contractRate/1000:(unit==='QTL'?contractRate/100:contractRate);
 
     html += '<details open style="margin-bottom:10px;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px">';
     html += '<summary style="cursor:pointer;font-weight:700;font-size:12.5px;color:#0b1f3a">'+(rep.fVendor||'Untitled')+' — '+(rep.fMaterial||'')+' ('+res.rows.length+' rows)</summary>';
@@ -4934,22 +4931,20 @@ function renderBulkImportPreview(){
     html += '<thead><tr style="background:#f1f5f9"><th style="padding:5px"></th><th style="padding:5px;text-align:left">Invoice No</th><th style="padding:5px;text-align:left">Date</th><th style="padding:5px;text-align:left">Vehicle</th><th style="padding:5px;text-align:right">Inv Wt</th><th style="padding:5px;text-align:right">Rate</th></tr></thead><tbody>';
     res.rows.forEach(function(row,ri){
       var isDupe = row.invNo && existingInvNos[String(row.invNo).trim().toLowerCase()];
-      var rowRateKg=+row.rate||0;
-      var rateMismatch = contractRateKg>0 && rowRateKg>0 && Math.abs(rowRateKg-contractRateKg)/contractRateKg > 0.02;
-      var rowStyle = isDupe ? 'background:#fef3c7' : (rateMismatch ? 'background:#fee2e2' : '');
+      var rowStyle = isDupe ? 'background:#fef3c7' : '';
       html += '<tr style="'+rowStyle+';border-bottom:1px solid #f1f5f9">'
         + '<td style="padding:4px;text-align:center"><input type="checkbox" class="bulkRowChk" data-repidx="'+res.idx+'" data-rowidx="'+ri+'" '+(isDupe?'':'checked')+'></td>'
         + '<td style="padding:4px">'+(row.invNo||'—')+(isDupe?' <span style="color:#b45309;font-size:9px">(dupe)</span>':'')+'</td>'
         + '<td style="padding:4px">'+(row.invDate||'—')+'</td>'
         + '<td style="padding:4px">'+(row.vehNo||'—')+'</td>'
         + '<td style="padding:4px;text-align:right">'+(row.invWt||'—')+'</td>'
-        + '<td style="padding:4px;text-align:right">'+(row.rate||'—')+(rateMismatch?' ⚠':'')+'</td>'
+        + '<td style="padding:4px;text-align:right">'+(row.rate||'—')+'</td>'
         + '</tr>';
     });
     html += '</tbody></table></details>';
   });
   html += '<button onclick="applyBulkImport()" style="width:100%;padding:9px;background:#15803d;color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;margin-top:6px">✓ Import All Selected Rows</button>';
-  html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">🟡 Yellow = already in that tab (unchecked by default) · 🔴 Red = rate mismatch vs that tab\'s Contract Rate</div>';
+  html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">🟡 Yellow = already in that tab (unchecked by default) · Vendor+Item+Rate+Month sab match kiye hain (±2% rate tolerance)</div>';
   resultsEl.innerHTML = html;
 }
 
@@ -5026,9 +5021,11 @@ function checkForUpdates(){
   toast('Checking source sheet for updates...','warn');
 
   var fetches = eligible.map(function(o){
+    var cRate=+o.r.fRate||0, u=o.r.fWtUnit||'KG';
+    var rateKg = u==='MT'?cRate/1000:(u==='QTL'?cRate/100:cRate);
     return fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
       action:'importSource', sourceSheetId:SOURCE_CONFIG.SHEET_ID, sourceGid:SOURCE_CONFIG.GID,
-      vendor:(o.r.fVendor||'').trim(), item:(o.r.fMaterial||'').trim(), months: MONTH_LIST
+      vendor:(o.r.fVendor||'').trim(), item:(o.r.fMaterial||'').trim(), months: MONTH_LIST, rateKg:rateKg
     })}).then(function(r){return r.json();}).then(function(res){
       return { idx:o.i, ok:res.ok, rows:res.rows||[], error:res.error };
     }).catch(function(){ return { idx:o.i, ok:false, rows:[], error:'Network error' }; });
