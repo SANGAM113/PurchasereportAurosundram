@@ -1292,7 +1292,13 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
     <div class="card-body">
       <div class="form-grid">
         <div class="field"><label>Report Title</label><input type="text" id="fTitle" value="Purchase Report" oninput="syncHdr()"></div>
-        <div class="field"><label>Vendor / Supplier</label><input type="text" id="fVendor" list="vendorMasterList" placeholder="e.g. Kalyani Oil Extraction Pvt Ltd" oninput="syncHdr()" onblur="rememberVendor(this.value)"><datalist id="vendorMasterList"></datalist></div>
+        <div class="field"><label>Vendor / Supplier</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="fVendor" list="vendorMasterList" placeholder="e.g. Kalyani Oil Extraction Pvt Ltd" oninput="syncHdr()" onblur="rememberVendor(this.value)" style="flex:1">
+            <button type="button" class="entry-only" onclick="openVendorPicker()" title="Pick exact vendor name from source sheet" style="padding:0 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:14px">📋</button>
+          </div>
+          <datalist id="vendorMasterList"></datalist>
+        </div>
         <div class="field"><label>Material</label><input type="text" id="fMaterial" list="materialMasterList" placeholder="e.g. DORB, Mustard Cake" onblur="rememberMaterial(this.value)"><datalist id="materialMasterList"></datalist></div>
         <div class="field"><label>Contract Type</label>
           <select id="fContractType" onchange="toggleContractType();recalcAll()">
@@ -4552,7 +4558,7 @@ function cloudLogin(){
   var errEl = g('cloudLoginErr');
   errEl.style.display='none';
   if(!user || !pass){ errEl.textContent='Username and password required'; errEl.style.display='block'; return; }
-  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycby-FpUTDLTpj8l9jyJ4kB0yudK3jotGmBVTzYgi4tZMvZJ0wpfWjOx6FNZ7Uu6aNQXw/exec'){
+  if(_cloudUrl()==='PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'){
     errEl.textContent='Backend not configured yet. See setup instructions.'; errEl.style.display='block'; return;
   }
   var btn=g('cloudLoginBtn'); btn.disabled=true; btn.textContent='Logging in...';
@@ -4778,7 +4784,7 @@ function renderImportPreview(){
 }
 
 function autoSaveBeforeImport(cb){
-  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycby-FpUTDLTpj8l9jyJ4kB0yudK3jotGmBVTzYgi4tZMvZJ0wpfWjOx6FNZ7Uu6aNQXw/exec'){ cb(); return; }
+  if(_cloudUrl()==='PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'){ cb(); return; }
   saveTab();
   var payload = { action:'saveData', username: CLOUD.user, baseVersion: CLOUD.version, force:true,
     data:{ reports:reports, activeTab:activeTab, tabIdCtr:tabIdCtr,
@@ -4818,7 +4824,7 @@ function applySelectedImport(){
 }
 
 function logImportEvent(count){
-  if(_cloudUrl()==='https://script.google.com/macros/s/AKfycby-FpUTDLTpj8l9jyJ4kB0yudK3jotGmBVTzYgi4tZMvZJ0wpfWjOx6FNZ7Uu6aNQXw/exec') return;
+  if(_cloudUrl()==='PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') return;
   fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
     action:'logEvent', username:CLOUD.user, eventType:'IMPORT',
     details:'Imported '+count+' rows for '+g('fVendor').value+' / '+g('fMaterial').value
@@ -5078,6 +5084,62 @@ function jumpToImport(repIdx){
     renderTabs(); renderAll();
   }
   openImportModal();
+}
+
+/* ═══════════════════════════════════════
+   VENDOR PICKER — pick exact name from source sheet
+   ═══════════════════════════════════════ */
+var VENDOR_PICKER_CACHE = null;
+
+function openVendorPicker(){
+  if(CLOUD.role!=='entry'){ toast('View-only access','error'); return; }
+  var modal=document.createElement('div');
+  modal.id='vendorPickerModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = '<div style="background:#fff;border-radius:12px;padding:22px;width:420px;max-width:92vw;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;position:relative">'
+    + '<button onclick="document.getElementById(\'vendorPickerModal\').remove()" style="position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:50%;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:16px;font-weight:700;cursor:pointer;line-height:1">✕</button>'
+    + '<h3 style="margin:0 0 12px;color:#0b1f3a">📋 Pick Vendor from Source Sheet</h3>'
+    + '<input type="text" id="vendorPickerSearch" placeholder="Type to search..." oninput="filterVendorPicker()" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;margin-bottom:10px">'
+    + '<div id="vendorPickerList" style="overflow-y:auto;flex:1;border:1px solid #e2e8f0;border-radius:8px">Loading...</div>'
+    + '</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+
+  if(VENDOR_PICKER_CACHE){ renderVendorPickerList(VENDOR_PICKER_CACHE); return; }
+
+  fetch(_cloudUrl(), {method:'POST', body: JSON.stringify({
+    action:'getVendorList', sourceSheetId:SOURCE_CONFIG.SHEET_ID, sourceGid:SOURCE_CONFIG.GID
+  })}).then(function(r){return r.json();})
+    .then(function(res){
+      var listEl=g('vendorPickerList');
+      if(!res.ok){ listEl.innerHTML='<div style="padding:10px;color:#dc2626">Failed: '+(res.error||'unknown')+'</div>'; return; }
+      VENDOR_PICKER_CACHE = res.vendors||[];
+      renderVendorPickerList(VENDOR_PICKER_CACHE);
+    }).catch(function(){ var listEl=g('vendorPickerList'); if(listEl) listEl.innerHTML='<div style="padding:10px;color:#dc2626">Failed — no connection</div>'; });
+}
+
+function renderVendorPickerList(vendors){
+  var listEl=g('vendorPickerList');
+  if(!listEl) return;
+  if(!vendors.length){ listEl.innerHTML='<div style="padding:10px;color:#94a3b8">No vendors found in source sheet.</div>'; return; }
+  listEl.innerHTML = vendors.map(function(v){
+    return '<div class="vendorPickItem" data-name="'+v.replace(/"/g,'&quot;')+'" onclick="selectVendorFromPicker(this)" style="padding:8px 12px;font-size:13px;color:#1e293b;cursor:pointer;border-bottom:1px solid #f1f5f9">'+v+'</div>';
+  }).join('');
+}
+
+function filterVendorPicker(){
+  var q = g('vendorPickerSearch').value.trim().toLowerCase();
+  var filtered = (VENDOR_PICKER_CACHE||[]).filter(function(v){ return v.toLowerCase().indexOf(q)>-1; });
+  renderVendorPickerList(filtered);
+}
+
+function selectVendorFromPicker(el){
+  var name = el.dataset.name;
+  g('fVendor').value = name;
+  if(typeof syncHdr==='function') syncHdr();
+  if(typeof rememberVendor==='function') rememberVendor(name);
+  var m=g('vendorPickerModal'); if(m) m.remove();
+  toast('Vendor set: '+name,'success');
 }
 
 function startAppAfterLogin(){
