@@ -1301,13 +1301,13 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
         </div>
         <div class="field"><label>Material</label><input type="text" id="fMaterial" list="materialMasterList" placeholder="e.g. DORB, Mustard Cake" onblur="rememberMaterial(this.value)"><datalist id="materialMasterList"></datalist></div>
         <div class="field"><label>Contract Type</label>
-          <select id="fContractType" onchange="toggleContractType();recalcAll()">
+          <select id="fContractType" onchange="toggleContractType();recalcAll();syncHdr()">
             <option value="weight">Weight-based (MT/KG target)</option>
             <option value="vehicle">Vehicle-based (fixed truck count)</option>
           </select>
         </div>
         <div class="field" id="contractQtyField"><label>Contract Qty (MT or KG)</label><input type="number" id="fContractQty" value="700" step="0.001" oninput="recalcAll()"></div>
-        <div class="field" id="totalVehiclesField" style="display:none"><label>Total Vehicles Contracted</label><input type="number" id="fTotalVehicles" value="5" step="1" min="1" oninput="recalcAll()"></div>
+        <div class="field" id="totalVehiclesField" style="display:none"><label>Total Vehicles Contracted</label><input type="number" id="fTotalVehicles" value="5" step="1" min="1" oninput="recalcAll();syncHdr()"></div>
         <div class="field"><label>Weight Unit</label>
           <select id="fWtUnit" onchange="recalcAll()">
             <option value="KG">KG (Kilograms)</option>
@@ -2849,7 +2849,13 @@ function syncHdr(){
   g('ph-tit').textContent=t+(v?' | '+v:'');
   var parts=[];
   if(m)    parts.push('Material: '+m);
-  if(qty)  parts.push('Contract: '+qty+' '+unit);
+  var isVehSub = g('fContractType') && g('fContractType').value==='vehicle';
+  if(isVehSub){
+    var tv=g('fTotalVehicles') && g('fTotalVehicles').value;
+    if(tv) parts.push('Contract: '+tv+' Vehicle'+(tv==='1'?'':'s'));
+  } else if(qty){
+    parts.push('Contract: '+qty+' '+unit);
+  }
   var cdt=g('fContractDate').value;
   if(cdt) parts.push('Contract Date: '+cdt);
   if(rate) parts.push('Rate: \u20b9'+rate+'/'+(g('fWtUnit').value||'KG'));
@@ -2867,7 +2873,10 @@ function syncHdr(){
     } else {
       var vendorName = (v||'').trim().toUpperCase() || 'VENDOR NAME';
       var materialPart = (m||'').toUpperCase();
-      var qtyPart = qty ? qty+' '+(unit||'KG') : '';
+      var isVehHdr = g('fContractType') && g('fContractType').value==='vehicle';
+      var qtyPart = isVehHdr
+        ? ((g('fTotalVehicles') && g('fTotalVehicles').value) ? g('fTotalVehicles').value+' Vehicle'+(g('fTotalVehicles').value==='1'?'':'s') : '')
+        : (qty ? qty+' '+(unit||'KG') : '');
       var ratePart = rate ? '@ \u20b9 '+rate+'/-' : '';
       var bits = [materialPart, qtyPart, ratePart].filter(Boolean).join(' ');
       pbar.textContent = bits ? vendorName+' ('+bits+')' : vendorName;
