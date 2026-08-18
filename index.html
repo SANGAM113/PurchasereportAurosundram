@@ -98,7 +98,13 @@ body{font-family:'Calibri',sans-serif;background:var(--bg);color:var(--text);-we
 .tbl-bar{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .tbl-bar .title{font-family:'Playfair Display',serif;font-size:14px;color:var(--navy);font-weight:600;display:flex;align-items:center;gap:8px}
 .tbl-bar .title::before{content:'';width:3px;height:15px;background:var(--gold);border-radius:2px}
-.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative}
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative;scroll-behavior:smooth}
+.tbl-scroll::-webkit-scrollbar{height:8px}
+.tbl-scroll::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px}
+body.compact-view #mainDataTable{font-size:10px !important}
+body.compact-view #mainDataTable th,body.compact-view #mainDataTable td{padding:3px 4px !important;line-height:1.2}
+body.compact-view #mainDataTable input,body.compact-view #mainDataTable select{font-size:10px !important;padding:2px 3px !important;height:22px !important}
+body.compact-view .lab-cell,body.compact-view .ded-amt{font-size:10px !important}
 
 /* table styles */
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
@@ -1507,11 +1513,12 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
         <button class="btn btn-sec btn-sm" onclick="openDrawer()">&#9881; Columns</button>
         <button class="btn btn-sec btn-sm" onclick="toggleWidthPanel()">&#8596; Widths</button>
         <button class="col-reset-btn no-print" onclick="resetColWidths()" title="Reset all column widths">&#8651; Reset Widths</button>
+        <button class="btn btn-sec btn-sm" id="compactViewBtn" onclick="toggleCompactView()" title="Shrink table for small screens">&#128269; Compact View</button>
         <button class="btn btn-danger btn-sm" id="clearBtn" onclick="clearAll()" style="display:none">&#10005; Clear All</button>
       </div>
     </div>
-    <div class="tbl-scroll">
-      <table>
+    <div class="tbl-scroll" id="mainTblScroll">
+      <table id="mainDataTable">
         <thead>
           <tr class="ghrow" id="ghRow"></tr>
           <tr class="chrow" id="chRow"></tr>
@@ -2436,6 +2443,26 @@ function addRow(data){
 }
 function delRow(id){ rows=rows.filter(function(r){return r.id!==id;}); renderAll(); }
 function clearAll(){ if(!rows.length) return; rows=[]; renderAll(); toast('Cleared','warn'); }
+function toggleCompactView(){
+  document.body.classList.toggle('compact-view');
+  var btn=g('compactViewBtn');
+  var isCompact=document.body.classList.contains('compact-view');
+  if(btn) btn.style.background = isCompact ? '#dbeafe' : '';
+  try{ localStorage.setItem('mirambika_compact_view', isCompact?'1':'0'); }catch(e){}
+  if(typeof adjustCellFonts==='function') setTimeout(adjustCellFonts,30);
+}
+// Restore compact-view preference on load
+(function(){
+  try{
+    if(localStorage.getItem('mirambika_compact_view')==='1'){
+      document.addEventListener('DOMContentLoaded', function(){
+        document.body.classList.add('compact-view');
+        var btn=g('compactViewBtn'); if(btn) btn.style.background='#dbeafe';
+      });
+    }
+  }catch(e){}
+})();
+
 function toggleContractType(){
   var isVehicle = g('fContractType').value === 'vehicle';
   g('totalVehiclesField').style.display = isVehicle ? '' : 'none';
