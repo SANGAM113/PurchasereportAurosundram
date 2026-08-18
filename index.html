@@ -31,13 +31,15 @@ html{font-size:14px}
 body{font-family:'Calibri',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 
 /* ── TOPBAR ── */
-#topbar{position:sticky;top:0;z-index:300;background:var(--navy);height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;box-shadow:0 2px 12px rgba(0,0,0,.35)}
+#topbar{position:sticky;top:0;z-index:300;background:var(--navy);min-height:58px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 22px;row-gap:10px;box-shadow:0 2px 12px rgba(0,0,0,.35)}
 .tb-brand{display:flex;align-items:center;gap:12px}
 .tb-brand img.tblogo{height:36px;object-fit:contain;filter:brightness(0) invert(1)}
 .tb-brand .sep{width:1px;height:28px;background:rgba(255,255,255,.2)}
 .tb-brand .tit{font-family:'Playfair Display',serif;font-size:15px;color:#fff;line-height:1.2}
 .tb-brand .sub{font-size:10px;color:var(--gold3);letter-spacing:1.4px;text-transform:uppercase;margin-top:1px}
-.tb-acts{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.tb-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:10px}
+.tb-group{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding-right:12px;margin-right:5px;border-right:1px solid rgba(255,255,255,.15)}
+.tb-group:last-child{border-right:none;padding-right:0;margin-right:0}
 
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--r);font-family:'Calibri',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;border:none;transition:.15s;white-space:nowrap}
@@ -1129,31 +1131,47 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
     </div>
   </div>
   <div class="tb-acts">
-    <button class="btn btn-nav btn-sm" onclick="openPaste()">&#128203; Paste Sheet</button>
-    <button class="btn btn-nav btn-sm entry-only" onclick="addRow()">&#65291; Add Row</button>
-    <button class="btn btn-nav btn-sm entry-only" onclick="openImportModal()" title="Pull matching data from the source RM Inward sheet" style="color:#93c5fd">&#128229; Import from Source</button>
-    <button class="btn btn-nav btn-sm entry-only" onclick="openBulkImportModal()" title="Import matching data into all open tabs at once" style="color:#c4b5fd">&#128229;&#128229; Import All Tabs</button>
-    <button class="btn btn-nav btn-sm entry-only" onclick="checkForUpdates()" title="Check source sheet for new data not yet imported" style="color:#fcd34d">&#128276; Check for Updates</button>
-    <button class="btn btn-nav btn-sm" onclick="openDrawer()">&#9881; Columns</button>
-    <button class="btn btn-nav btn-sm" onclick="toggleWidthPanel()">&#8596; Widths</button>
-    <button class="btn btn-nav btn-sm" onclick="openStatModal()">&#9783; Dashboard</button>
-    <button class="btn btn-nav btn-sm" onclick="openContractReport()">&#128196; Contract Report</button>
-    <button class="btn btn-nav btn-sm" onclick="exportAllData()" title="Download a backup of ALL tabs/reports as a file">&#128190; Export Backup</button>
-    <button class="btn btn-nav btn-sm entry-only" onclick="triggerImportData()" title="Restore all tabs/reports from a backup file">&#128228; Import Backup</button>
-    <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importAllData(event)">
-    <button class="btn btn-nav btn-sm entry-only" onclick="confirmClearData()" title="Clear all data in current tab" style="color:#fca5a5">&#128465; Clear Data</button>
-    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn" title="Toggle dark/light mode" style="margin-right:6px">
-      <span class="ti-icon" id="themeIcon">&#9728;</span>
-      <span id="themeLbl">Light</span>
-    </button>
-    <button class="btn btn-nav btn-sm" onclick="openDraftMenu()" id="draftBtn" title="Save / Load drafts">&#128190; Drafts <span id="draftBadge" class="draft-badge" style="display:none">0</span></button>
-    <button class="btn btn-nav btn-sm entry-only" onclick="saveToCloud()" title="Push current data to the team" style="color:#86efac">&#9729; Save to Team</button>
-    <button class="btn btn-nav btn-sm" onclick="loadFromCloud()" title="Pull latest data saved by the team" style="color:#93c5fd">&#128260; Refresh from Team</button>
-    <button class="btn btn-nav btn-sm" onclick="openCloudHistory()" title="View / restore past saves" style="color:#fcd34d">&#128220; History</button>
-    <button class="btn btn-nav btn-sm" onclick="openPresetMenu()" id="presetBtn" title="Save/apply print layout presets (which columns, cards, TDS, etc. show in PDF)">&#127917; Print Presets</button>
-    <button class="btn btn-nav btn-sm" onclick="toggleMainLayoutPanel()" id="mainLayoutBtn" title="Adjust page layout for print/PDF">&#9881; Layout</button>
-    <button class="btn btn-nav btn-sm" onclick="exportToExcel()" id="excelBtn" title="Export current report to Excel (.xls, opens natively, no internet needed)" style="background:#0d6e3a;color:#fff;border-color:#15803d">&#128202; Export Excel</button>
-    <button class="btn btn-primary" onclick="exportPDF()">&#11015; Export PDF</button>
+    <div class="tb-group">
+      <button class="btn btn-nav btn-sm" onclick="openPaste()">&#128203; Paste Sheet</button>
+      <button class="btn btn-nav btn-sm entry-only" onclick="addRow()">&#65291; Add Row</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn btn-nav btn-sm entry-only" onclick="openImportModal()" title="Pull matching data from the source RM Inward sheet" style="color:#93c5fd">&#128229; Import from Source</button>
+      <button class="btn btn-nav btn-sm entry-only" onclick="openBulkImportModal()" title="Import matching data into all open tabs at once" style="color:#c4b5fd">&#128229;&#128229; Import All Tabs</button>
+      <button class="btn btn-nav btn-sm entry-only" onclick="checkForUpdates()" title="Check source sheet for new data not yet imported" style="color:#fcd34d">&#128276; Check for Updates</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn btn-nav btn-sm" onclick="openDrawer()">&#9881; Columns</button>
+      <button class="btn btn-nav btn-sm" onclick="toggleWidthPanel()">&#8596; Widths</button>
+      <button class="btn btn-nav btn-sm" onclick="openStatModal()">&#9783; Dashboard</button>
+      <button class="btn btn-nav btn-sm" onclick="openContractReport()">&#128196; Contract Report</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn btn-nav btn-sm" onclick="exportAllData()" title="Download a backup of ALL tabs/reports as a file">&#128190; Export Backup</button>
+      <button class="btn btn-nav btn-sm entry-only" onclick="triggerImportData()" title="Restore all tabs/reports from a backup file">&#128228; Import Backup</button>
+      <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importAllData(event)">
+      <button class="btn btn-nav btn-sm entry-only" onclick="confirmClearData()" title="Clear all data in current tab" style="color:#fca5a5">&#128465; Clear Data</button>
+    </div>
+    <div class="tb-group">
+      <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn" title="Toggle dark/light mode">
+        <span class="ti-icon" id="themeIcon">&#9728;</span>
+        <span id="themeLbl">Light</span>
+      </button>
+      <button class="btn btn-nav btn-sm" onclick="openDraftMenu()" id="draftBtn" title="Save / Load drafts">&#128190; Drafts <span id="draftBadge" class="draft-badge" style="display:none">0</span></button>
+    </div>
+    <div class="tb-group">
+      <button class="btn btn-nav btn-sm entry-only" onclick="saveToCloud()" title="Push current data to the team" style="color:#86efac">&#9729; Save to Team</button>
+      <button class="btn btn-nav btn-sm" onclick="loadFromCloud()" title="Pull latest data saved by the team" style="color:#93c5fd">&#128260; Refresh from Team</button>
+      <button class="btn btn-nav btn-sm" onclick="openCloudHistory()" title="View / restore past saves" style="color:#fcd34d">&#128220; History</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn btn-nav btn-sm" onclick="openPresetMenu()" id="presetBtn" title="Save/apply print layout presets (which columns, cards, TDS, etc. show in PDF)">&#127917; Print Presets</button>
+      <button class="btn btn-nav btn-sm" onclick="toggleMainLayoutPanel()" id="mainLayoutBtn" title="Adjust page layout for print/PDF">&#9881; Layout</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn btn-nav btn-sm" onclick="exportToExcel()" id="excelBtn" title="Export current report to Excel (.xls, opens natively, no internet needed)" style="background:#0d6e3a;color:#fff;border-color:#15803d">&#128202; Export Excel</button>
+      <button class="btn btn-primary" onclick="exportPDF()">&#11015; Export PDF</button>
+    </div>
   </div>
 </div>
 
@@ -4875,7 +4893,7 @@ function showUndoImportButton(){
   btn.style.color='#fca5a5';
   btn.innerHTML='↩ Undo Last Import';
   btn.onclick=undoLastImport;
-  var navRow=document.querySelector('.btn-nav') ? document.querySelector('.btn-nav').parentElement : null;
+  var navRow=document.querySelector('.tb-acts');
   if(navRow) navRow.appendChild(btn);
 }
 
@@ -5034,7 +5052,7 @@ function showUndoBulkImportButton(){
   btn.style.color='#fca5a5';
   btn.innerHTML='↩ Undo Bulk Import';
   btn.onclick=undoBulkImport;
-  var navRow=document.querySelector('.btn-nav') ? document.querySelector('.btn-nav').parentElement : null;
+  var navRow=document.querySelector('.tb-acts');
   if(navRow) navRow.appendChild(btn);
 }
 
@@ -5183,7 +5201,7 @@ function startAppAfterLogin(){
   badge.id='cloudUserBadge';
   badge.innerHTML = '&#128100; <b>'+CLOUD.user+'</b> ('+(CLOUD.role==='entry'?'Entry':'View only')+') '
     + '<button class="btn btn-nav btn-sm" onclick="cloudLogout()" style="margin-left:6px;padding:3px 8px">Logout</button>';
-  var navRow = document.querySelector('.btn-nav') ? document.querySelector('.btn-nav').parentElement : null;
+  var navRow = document.querySelector('.tb-acts');
   if(navRow) navRow.appendChild(badge);
   runInit();
   loadFromCloud(true); // pull latest team data on login
