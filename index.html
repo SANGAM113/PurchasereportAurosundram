@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Auro Sundram Foods and Feeds Pvt Ltd</title>
+<title>Purchase Report — Auro Sundram Foods</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7a1220">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -4612,9 +4612,40 @@ if(!CLOUD_CONFIG.REQUIRE_LOGIN){
     if(overlay) overlay.style.display='none';
     startAppAfterLogin();
   });
+} else {
+  // Login required — but skip re-entering username/password if we have a valid session from the last 24 hours.
+  window.addEventListener('DOMContentLoaded', function(){
+    tryRestoreSession();
+  });
 }
 
 function _cloudUrl(){ return CLOUD_CONFIG.APPS_SCRIPT_URL; }
+
+var SESSION_KEY = 'mirambika_session_v1';
+var SESSION_VALID_MS = 24*60*60*1000; // 24 hours
+
+function saveSession(){
+  try{
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ user: CLOUD.user, role: CLOUD.role, ts: Date.now() }));
+  }catch(e){}
+}
+
+function tryRestoreSession(){
+  try{
+    var raw = localStorage.getItem(SESSION_KEY);
+    if(!raw) return false;
+    var sess = JSON.parse(raw);
+    if(!sess || !sess.user || !sess.ts) return false;
+    if(Date.now() - sess.ts > SESSION_VALID_MS){ localStorage.removeItem(SESSION_KEY); return false; }
+    CLOUD.user = sess.user;
+    CLOUD.role = sess.role || 'view';
+    CLOUD.loggedIn = true;
+    document.body.classList.toggle('role-view', CLOUD.role==='view');
+    var overlay=g('cloudLoginOverlay'); if(overlay) overlay.style.display='none';
+    startAppAfterLogin();
+    return true;
+  }catch(e){ return false; }
+}
 
 function cloudLogin(){
   var user = g('cloudUser').value.trim();
@@ -4638,6 +4669,7 @@ function cloudLogin(){
       CLOUD.loggedIn = true;
       document.body.classList.toggle('role-view', CLOUD.role==='view');
       g('cloudLoginOverlay').style.display='none';
+      saveSession();
       startAppAfterLogin();
     }).catch(function(e){
       btn.disabled=false; btn.textContent='Login';
@@ -4647,6 +4679,7 @@ function cloudLogin(){
 
 function cloudLogout(){
   if(!confirm('Logout? Unsaved changes not pushed to cloud will be lost on this device.')) return;
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
   location.reload();
 }
 
