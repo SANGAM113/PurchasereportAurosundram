@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Auro Sundram Foods and Feeds Pvt Ltd</title>
+<title>Auro Sundram Foods and Feeds Pvt Ltd — Purchase Report</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7a1220">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" id="dynamicFavicon" type="image/png" href="">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Purchase Report">
@@ -1124,6 +1125,18 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
         var srcImg = document.querySelector('img.tblogo') || document.querySelector('img.ph-logo');
         var loginLogo = document.getElementById('cloudLoginLogo');
         if(srcImg && loginLogo) loginLogo.src = srcImg.src;
+        var favicon = document.getElementById('dynamicFavicon');
+        if(srcImg && favicon) favicon.href = srcImg.src;
+        if(!srcImg && favicon){
+          // Fallback: title element might load before topbar's <img> tag is parsed — try once more shortly after.
+          setTimeout(function(){
+            var img2 = document.querySelector('img.tblogo') || document.querySelector('img.ph-logo');
+            if(img2){
+              if(favicon) favicon.href = img2.src;
+              var ll=document.getElementById('cloudLoginLogo'); if(ll) ll.src = img2.src;
+            }
+          }, 200);
+        }
       });
     </script>
     <div id="cloudLoginErr"></div>
