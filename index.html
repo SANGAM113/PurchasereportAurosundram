@@ -1391,6 +1391,7 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
           <label>Payment Status (shown in Contract Report)</label>
           <select id="fPayStatus" onchange="recalcAll()" style="width:100%">
             <option value="pending">&#9203; Pending</option>
+            <option value="paid25">&#128161; 25% Paid</option>
             <option value="paid50">&#9889; 50% Paid</option>
             <option value="paid75">&#127775; 75% Paid</option>
             <option value="paid">&#9989; Fully Paid</option>
@@ -1654,8 +1655,8 @@ _loadSavedTheme();
 var COLS = [
   {k:'sr',         label:'Sl. No.',                  grp:'main', type:'sr',    r:false, cls:'c',        locked:true,  vis:true},
   {k:'inv_date',   label:'Invoice Date',              grp:'main', type:'input', r:false, it:'text',   ph:'DD/MM/YY',  locked:false, vis:true},
-  {k:'inv_no',     label:'Invoice No.',               grp:'main', type:'input', r:false, it:'text',   ph:'KO/001/26-27', locked:false, vis:true},
-  {k:'veh_no',     label:'Veh. No.',                  grp:'main', type:'input', r:false, it:'text',   ph:'WB65E/1642',   locked:false, vis:true},
+  {k:'inv_no',     label:'Invoice No.',               grp:'main', type:'input', r:false, it:'text',   ph:'',   locked:false, vis:true},
+  {k:'veh_no',     label:'Veh. No.',                  grp:'main', type:'input', r:false, it:'text',   ph:'',   locked:false, vis:true},
   {k:'inv_wt',     label:'Invoice Weight',            grp:'main', type:'input', r:true,  it:'number', ph:'0',         locked:false, vis:true},
   {k:'grn_wt',     label:'GRN Weight',                grp:'main', type:'input', r:true,  it:'number', ph:'0',         locked:false, vis:true},
   {k:'grn_date',   label:'GRN Date',                  grp:'main', type:'input', r:false, it:'text',   ph:'DD/MM/YY',  locked:false, vis:true},
@@ -2898,6 +2899,7 @@ function syncHdr(){
   var t=g('fTitle').value||'Purchase Report';
   var v=g('fVendor').value, m=g('fMaterial').value;
   var rate=g('fRate').value, qty=g('fContractQty').value, unit=g('fWtUnit').value;
+  var gst=g('fGST').value;
   var po=g('fPO').value, date=g('fDate').value, by=g('fPrepBy').value;
   var pass=g('fPassMoisture').value;
   var d=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
@@ -2914,6 +2916,7 @@ function syncHdr(){
   var cdt=g('fContractDate').value;
   if(cdt) parts.push('Contract Date: '+cdt);
   if(rate) parts.push('Rate: \u20b9'+rate+'/'+(g('fWtUnit').value||'KG'));
+  if(gst && +gst>0) parts.push('GST: '+gst+'%');
   if(pass) parts.push('Passing Moisture: '+pass+'%');
   if(po)   parts.push('PO: '+po);
   if(by)   parts.push('By: '+by);
@@ -2932,7 +2935,7 @@ function syncHdr(){
       var qtyPart = isVehHdr
         ? ((g('fTotalVehicles') && g('fTotalVehicles').value) ? g('fTotalVehicles').value+' Vehicle'+(g('fTotalVehicles').value==='1'?'':'s') : '')
         : (qty ? qty+' '+(unit||'KG') : '');
-      var ratePart = rate ? '@ \u20b9 '+rate+'/-' : '';
+      var ratePart = rate ? '@ \u20b9 '+rate+'/-'+(gst && +gst>0 ? ' + '+gst+'% GST' : '') : '';
       var bits = [materialPart, qtyPart, ratePart].filter(Boolean).join(' ');
       pbar.textContent = bits ? vendorName+' ('+bits+')' : vendorName;
     }
@@ -5797,6 +5800,7 @@ function _generateReportFromSelection(selectedReports){
         if(ps==='paid') return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:11px;font-size:10.5px;font-weight:700;background:#dcfce7;color:#14532d;border:1.5px solid #86efac">\u2705 Fully Paid</span>';
         if(ps==='paid75') return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:11px;font-size:10.5px;font-weight:700;background:#d1fae5;color:#065f46;border:1.5px solid #6ee7b7">\ud83c\udf1f 75% Paid</span>';
         if(ps==='paid50') return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:11px;font-size:10.5px;font-weight:700;background:#dbeafe;color:#1e3a8a;border:1.5px solid #93c5fd">\u26a1 50% Paid</span>';
+        if(ps==='paid25') return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:11px;font-size:10.5px;font-weight:700;background:#ede9fe;color:#4c1d95;border:1.5px solid #c4b5fd">\ud83d\udca1 25% Paid</span>';
         if(ps==='advance') return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:11px;font-size:10.5px;font-weight:700;background:#fef3c7;color:#78350f;border:1.5px solid #fbbf24">\u26a0 Advance</span>';
         return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:11px;font-size:10.5px;font-weight:700;background:#f1f5f9;color:#475569;border:1.5px solid #cbd5e1">\u23f3 Pending</span>';
       }())+'</td>'
@@ -6352,7 +6356,7 @@ function _generateReportFromSelection(selectedReports){
         +'var doneStr=_isVehE?(_totVehE===0?"\u2014":doneP.toFixed(1)+"%"):(cQtyKg===0?"\u2014":doneP.toFixed(1)+"%");'
         +'var _stOv=rep.fStatusOverride||"auto";'
         +'var status=_stOv!=="auto"?(_stOv==="completed"?"Completed":_stOv==="wip"?"In Progress":_stOv==="pending"?"Pending":_stOv==="cancelled"?"Cancelled":"On Hold"):(_isVehE?((_totVehE>0&&_recVehE>=_totVehE)?"Completed":(_recVehE>0?"In Progress":"Pending")):(doneP>=99?"Completed":(doneP>0?"In Progress":"Pending")));'
-        +'html+=\'<tr><td class="cC">\'+(i+1)+\'</td><td class="cL cB">\'+vendor+(rep.fAdvancePaid===true?\' [ADV]\':\'\')+\'</td><td class="cL">\'+item+\'</td><td class="cC">\'+period+\'</td><td class="cC">\'+(T.inv?T.inv.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC">\'+(T.grn?T.grn.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cS">\'+(T.sw>0?T.sw.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC cB">\'+doneStr+\'</td><td class="cC">\'+(rep.fPayStatus==="paid"?"\u2705 Fully Paid":rep.fPayStatus==="paid75"?"\ud83c\udf1f 75% Paid":rep.fPayStatus==="paid50"?"\u26a1 50% Paid":rep.fPayStatus==="advance"||rep.fAdvancePaid===true?"\u26a0 Advance":"\u23f3 Pending")+\'</td><td class="cC">\'+status+\'</td></tr>\';'
+        +'html+=\'<tr><td class="cC">\'+(i+1)+\'</td><td class="cL cB">\'+vendor+(rep.fAdvancePaid===true?\' [ADV]\':\'\')+\'</td><td class="cL">\'+item+\'</td><td class="cC">\'+period+\'</td><td class="cC">\'+(T.inv?T.inv.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC">\'+(T.grn?T.grn.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cS">\'+(T.sw>0?T.sw.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC cB">\'+doneStr+\'</td><td class="cC">\'+(rep.fPayStatus==="paid"?"\u2705 Fully Paid":rep.fPayStatus==="paid75"?"\ud83c\udf1f 75% Paid":rep.fPayStatus==="paid50"?"\u26a1 50% Paid":rep.fPayStatus===\"paid25\"?\"\ud83d\udca1 25% Paid\":rep.fPayStatus==="advance"||rep.fAdvancePaid===true?"\u26a0 Advance":"\u23f3 Pending")+\'</td><td class="cC">\'+status+\'</td></tr>\';'
       +'});'
       +'html+=\'<tr class="gR"><td class="gR" colspan="4">GRAND TOTAL \u2014 weight-based</td><td class="gR">\'+gInv.toLocaleString("en-IN")+\'</td><td class="gR">\'+gGrn.toLocaleString("en-IN")+\'</td><td class="gR"><b>\'+(function(){var trk=0;reports.forEach(function(r){if(r.fContractType==="vehicle")return;var cq=+r.fContractQty||0;var unit=r.fWtUnit||"KG";var cqKg=unit==="MT"?cq*1000:cq;var invKg=0;(r.rows||[]).forEach(function(row){invKg+=_stripNum(row.inv_wt);});if(cqKg-invKg>0)trk+=(cqKg-invKg);});return trk>0?Math.round(trk).toLocaleString("en-IN")+" KG":"\u2713 Done";}())+\'</b></td><td class="gR">\'+(gcq>0?(gGrn/gcq*100).toFixed(1)+"%":"\u2014")+\'</td><td class="gR"></td></tr>\';'
       +'(function(){var vR=reports.filter(function(r){return r.fContractType==="vehicle";});if(vR.length){var vt=0,vr=0;vR.forEach(function(r){vt+=(+r.fTotalVehicles||0);vr+=_countArrivedVehiclesX(r.rows);});html+=\'<tr class="gR"><td class="gR" colspan="4">\ud83d\ude9a \'+vR.length+\' Vehicle-based</td><td class="gR" colspan="2">\'+vr+\'/\'+vt+\' Vehicles</td><td class="gR"><b>\'+(vt-vr<=0?"\u2713 Done":(vt-vr)+" Veh")+\'</b></td><td class="gR">\'+(vt>0?(vr/vt*100).toFixed(1)+"%":"\u2014")+\'</td><td class="gR"></td></tr>\';}})();'
