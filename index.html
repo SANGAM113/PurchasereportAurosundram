@@ -6164,6 +6164,7 @@ function _generateReportFromSelection(selectedReports){
     '.lab-mode-banner .lmb-tit{font-weight:700;font-size:calc(12.5px*var(--font-scale));margin-bottom:1px}',
     '.lab-mode-banner .lmb-sub{color:#15803d;font-weight:500;font-size:calc(11px*var(--font-scale));line-height:1.4}',
     'body.compact .cb.no-moist col.c-moist,body.compact .cb.no-ded col.c-ded,body.compact .cb.no-qual col.c-qual,body.compact .cb.no-shc col.c-shc,body.compact .cb.no-lab col.c-lab{visibility:collapse}',
+    'body.summary-only .truck-detail-section{display:none!important}',
     '.pbtn-toggle.on{background:#fbbf24!important;color:#0b1f3a!important;font-weight:700!important;border-color:#f59e0b!important}'
   ].join('');
 
@@ -6201,6 +6202,9 @@ function _generateReportFromSelection(selectedReports){
     +'</button>'
     +'<button class="pbtn pn pbtn-toggle" id="compactBtn" onclick="toggleCompactMode()" title="Hide empty columns and fit more contracts per page">'
     +'<span id="compactIcon">\u2610</span> Compact Mode'
+    +'</button>'
+    +'<button class="pbtn pn pbtn-toggle" id="summaryOnlyBtn" onclick="toggleSummaryOnly()" title="Hide per-vehicle truck detail — show only the Contract Summary table and Payment Summary">'
+    +'<span id="summaryOnlyIcon">\u2610</span> \ud83d\udcc4 Summary Only'
     +'</button>'
     +'<button class="pbtn pn" style="background:#0d6e3a;color:#fff;border-color:#15803d;font-weight:600" onclick="exportPreviewToExcel()" title="Export current preview to Excel (reflects active modes)">\ud83d\udcca Export Excel</button>'
     +'<button class="pbtn pn" onclick="window.close()">\u2715 Close</button>'
@@ -6300,8 +6304,8 @@ function _generateReportFromSelection(selectedReports){
         +'</tr>';
     }())
     +'</tfoot></table>'
-    +'<div class="slbl" style="margin-bottom:11px">Contract-wise Truck Detail</div>'
-    +detail
+    +'<div class="slbl truck-detail-section" style="margin-bottom:11px">Contract-wise Truck Detail</div>'
+    +'<div class="truck-detail-section">'+detail+'</div>'
     +'</div>'
     +'<scr'+'ipt>'
     +'var __REPORTS__='+JSON.stringify(reports).replace(/<\//g,'<\\/').replace(/-->/g,'-- >')+';'
@@ -6310,6 +6314,12 @@ function _generateReportFromSelection(selectedReports){
     +'var on=b.classList.toggle("compact");'
     +'document.getElementById("compactIcon").textContent=on?"\u2611":"\u2610";'
     +'document.getElementById("compactBtn").classList.toggle("on",on);'
+    +'}'
+    +'function toggleSummaryOnly(){'
+    +'var b=document.body;'
+    +'var on=b.classList.toggle("summary-only");'
+    +'document.getElementById("summaryOnlyIcon").textContent=on?"\u2611":"\u2610";'
+    +'document.getElementById("summaryOnlyBtn").classList.toggle("on",on);'
     +'}'
     +'function toggleLabMode(){'
     +'var b=document.body;'
