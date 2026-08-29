@@ -163,6 +163,8 @@ td.c{text-align:center}
 td.cal{font-family:'Calibri',monospace;font-size:11.5px}
 td.shortage-wt{background:var(--yellowcell)!important;font-weight:700;font-family:'Calibri',monospace;color:#7c4700}
 td.inv-wt-short{background:var(--yellowcell)!important;font-weight:700;font-family:'Calibri',monospace;color:#7c4700}
+td.dup-invoice{background:#fee2e2!important}
+td.dup-invoice input{background:#fee2e2!important;color:#7f1d1d!important;font-weight:700;border:1.5px solid #ef4444!important}
 td.ded-amt{background:#fecaca!important;color:var(--red);font-family:'Calibri',monospace;font-size:11.5px;font-weight:600}
 td.lab-cell{background:#f0fdf4!important;color:#166534;font-family:'Calibri',monospace;font-size:11.5px}
 td.net-pay{background:var(--greenbg)!important;color:var(--green)!important;font-family:'Calibri',monospace;font-size:12px;font-weight:700}
@@ -1022,6 +1024,8 @@ html[data-theme="dark"] .field input,
 html[data-theme="dark"] .field select{background:var(--surface2)!important}
 html[data-theme="dark"] td.shortage-wt,
 html[data-theme="dark"] td.inv-wt-short{background:#3a2e0a!important;color:#fde68a!important}
+html[data-theme="dark"] td.dup-invoice{background:#4c1d1d!important}
+html[data-theme="dark"] td.dup-invoice input{background:#4c1d1d!important;color:#fecaca!important}
 html[data-theme="dark"] td.ded-amt{background:#3a1414!important;color:#fca5a5!important}
 html[data-theme="dark"] td.ded-auto{background:#2d2410!important;color:#fde68a!important}
 html[data-theme="dark"] td.lab-cell{background:#0d2818!important;color:#86efac!important}
@@ -2614,6 +2618,25 @@ function renderBody(){
     });
     tbody.appendChild(tr);
   });
+  highlightDuplicateInvoiceNos();
+}
+
+// Flags any Invoice No that repeats more than once within the CURRENT tab.
+// Purely visual (red cell + tooltip) — does not block entry or change any data.
+function highlightDuplicateInvoiceNos(){
+  var counts = {};
+  rows.forEach(function(r){
+    var v = String(r.inv_no||'').trim().toLowerCase();
+    if(!v) return;
+    counts[v] = (counts[v]||0) + 1;
+  });
+  document.querySelectorAll('#tBody td[data-k="inv_no"]').forEach(function(td){
+    var inp = td.querySelector('input');
+    var v = inp ? String(inp.value||'').trim().toLowerCase() : '';
+    var isDup = v && counts[v] > 1;
+    td.classList.toggle('dup-invoice', !!isDup);
+    if(inp) inp.title = isDup ? '\u26a0 Duplicate Invoice No — this appears '+counts[v]+' times in this tab' : '';
+  });
 }
 
 function setCellCalcValue(td, k, r, calc){
@@ -2667,6 +2690,7 @@ function onCell(e){
       td2.classList.toggle('inv-wt-short',calc.shortage_wt>0);
     }
   });
+  if(f==='inv_no') highlightDuplicateInvoiceNos();
   renderFootAndStats();
 }
 
