@@ -4474,7 +4474,7 @@ function _generateExcelFromSelection(selectedReports){
 
     html += '<tr>'
       +'<td class="cell-c">'+(i+1)+'</td>'
-      +'<td class="cell-l cell-bold">'+vendor+(rep.fAdvancePaid===true?' [ADV]':'')+'</td>'
+      +'<td class="cell-l cell-bold">'+vendor+(rep.fContractDate?'<br><span style="font-size:10px;color:#64748b;font-weight:600">\ud83d\udcc5 Contract: '+rep.fContractDate+'</span>':'')+(rep.fAdvancePaid===true?' [ADV]':'')+'</td>'
       +'<td class="cell-l">'+item+'</td>'
       +'<td class="cell-c">'+period+'</td>'
       +'<td class="cell-c">'+(T.inv?T.inv.toLocaleString('en-IN'):'—')+'</td>'
@@ -5801,6 +5801,7 @@ function _generateReportFromSelection(selectedReports){
       +'<td class="tc" style="font-size:12px;font-weight:700;color:#0b1f3a">'+(i+1)+'</td>'
       +'<td class="tl" style="line-height:1.35;padding:8px 9px">'
       +'<div style="font-size:13px;font-weight:700;color:#0b1f3a;letter-spacing:.1px;line-height:1.3;word-wrap:break-word;overflow-wrap:break-word;white-space:normal">'+vn+'</div>'
+      +(rep.fContractDate?'<div style="font-size:10px;color:#64748b;margin-top:3px;font-weight:600">\ud83d\udcc5 Contract: '+rep.fContractDate+'</div>':'')
       +(rep.fPO?'<div style="font-size:10px;color:#94a3b8;margin-top:2px;font-weight:500">PO: '+rep.fPO+'</div>':'')
       +'</td>'
       +'<td class="tl" style="font-size:10.5px;line-height:1.4;font-weight:600;color:#1e293b;white-space:normal;word-wrap:break-word">'+itemTxt+'</td>'
@@ -6387,6 +6388,7 @@ function _generateReportFromSelection(selectedReports){
         +'(rep.rows||[]).forEach(function(r){var inv=_stripNum(r.inv_wt),grn=_stripNum(r.grn_wt);T.inv+=inv;T.grn+=grn;T.sw+=Math.max(inv-grn,0);});'
         +'gInv+=T.inv;gGrn+=T.grn;gSw+=T.sw;var _cq=+rep.fContractQty||0;var _u=rep.fWtUnit||"KG";var _isVehE=rep.fContractType==="vehicle";if(!_isVehE)gcq+=(_u==="MT"?_cq*1000:(_u==="QTL"?_cq*100:_cq));'
         +'var vendor=(rep.fVendor||"").trim()||"Untitled \u2014 Tab "+(i+1);'
+        +'var contractDate=String(rep.fContractDate||"").trim();'
         +'var item=(rep.fMaterial||"")+(_isVehE?" \ud83d\ude9a "+(rep.fTotalVehicles||"0")+" Vehicles":(rep.fContractQty?" "+rep.fContractQty+" "+rep.fWtUnit:""));'
         +'if(rep.fRate)item+=" @ \u20b9"+rep.fRate+"/"+(rep.fWtUnit||"KG");'
         +'if(gstPct>0)item+=" + "+gstPct+"% GST";'
@@ -6403,7 +6405,7 @@ function _generateReportFromSelection(selectedReports){
         +'var doneStr=_isVehE?(_totVehE===0?"\u2014":doneP.toFixed(1)+"%"):(cQtyKg===0?"\u2014":doneP.toFixed(1)+"%");'
         +'var _stOv=rep.fStatusOverride||"auto";'
         +'var status=_stOv!=="auto"?(_stOv==="completed"?"Completed":_stOv==="wip"?"In Progress":_stOv==="pending"?"Pending":_stOv==="cancelled"?"Cancelled":"On Hold"):(_isVehE?((_totVehE>0&&_recVehE>=_totVehE)?"Completed":(_recVehE>0?"In Progress":"Pending")):(doneP>=99?"Completed":(doneP>0?"In Progress":"Pending")));'
-        +'html+=\'<tr><td class="cC">\'+(i+1)+\'</td><td class="cL cB">\'+vendor+(rep.fAdvancePaid===true?\' [ADV]\':\'\')+\'</td><td class="cL">\'+item+\'</td><td class="cC">\'+period+\'</td><td class="cC">\'+(T.inv?T.inv.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC">\'+(T.grn?T.grn.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cS">\'+(T.sw>0?T.sw.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC cB">\'+doneStr+\'</td><td class="cC">\'+(rep.fPayStatus==="paid"?"\u2705 Fully Paid":rep.fPayStatus==="paid75"?"\ud83c\udf1f 75% Paid":rep.fPayStatus==="paid50"?"\u26a1 50% Paid":rep.fPayStatus===\"paid25\"?\"\ud83d\udca1 25% Paid\":rep.fPayStatus==="advance"||rep.fAdvancePaid===true?"\u26a0 Advance":"\u23f3 Pending")+\'</td><td class="cC">\'+status+\'</td></tr>\';'
+        +'html+=\'<tr><td class="cC">\'+(i+1)+\'</td><td class="cL cB">\'+vendor+(contractDate?\'<br><span style=\"font-size:10px;color:#64748b;font-weight:600\">\ud83d\udcc5 Contract: \'+contractDate+\'</span>\':\'\')+(rep.fAdvancePaid===true?\' [ADV]\':\'\')+\'</td><td class="cL">\'+item+\'</td><td class="cC">\'+period+\'</td><td class="cC">\'+(T.inv?T.inv.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC">\'+(T.grn?T.grn.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cS">\'+(T.sw>0?T.sw.toLocaleString("en-IN"):"\u2014")+\'</td><td class="cC cB">\'+doneStr+\'</td><td class="cC">\'+(rep.fPayStatus==="paid"?"\u2705 Fully Paid":rep.fPayStatus==="paid75"?"\ud83c\udf1f 75% Paid":rep.fPayStatus==="paid50"?"\u26a1 50% Paid":rep.fPayStatus===\"paid25\"?\"\ud83d\udca1 25% Paid\":rep.fPayStatus==="advance"||rep.fAdvancePaid===true?"\u26a0 Advance":"\u23f3 Pending")+\'</td><td class="cC">\'+status+\'</td></tr>\';'
       +'});'
       +'html+=\'<tr class="gR"><td class="gR" colspan="4">GRAND TOTAL \u2014 weight-based</td><td class="gR">\'+gInv.toLocaleString("en-IN")+\'</td><td class="gR">\'+gGrn.toLocaleString("en-IN")+\'</td><td class="gR"><b>\'+(function(){var trk=0;reports.forEach(function(r){if(r.fContractType==="vehicle")return;var cq=+r.fContractQty||0;var unit=r.fWtUnit||"KG";var cqKg=unit==="MT"?cq*1000:cq;var invKg=0;(r.rows||[]).forEach(function(row){invKg+=_stripNum(row.inv_wt);});if(cqKg-invKg>0)trk+=(cqKg-invKg);});return trk>0?Math.round(trk).toLocaleString("en-IN")+" KG":"\u2713 Done";}())+\'</b></td><td class="gR">\'+(gcq>0?(gGrn/gcq*100).toFixed(1)+"%":"\u2014")+\'</td><td class="gR"></td></tr>\';'
       +'(function(){var vR=reports.filter(function(r){return r.fContractType==="vehicle";});if(vR.length){var vt=0,vr=0;vR.forEach(function(r){vt+=(+r.fTotalVehicles||0);vr+=_countArrivedVehiclesX(r.rows);});html+=\'<tr class="gR"><td class="gR" colspan="4">\ud83d\ude9a \'+vR.length+\' Vehicle-based</td><td class="gR" colspan="2">\'+vr+\'/\'+vt+\' Vehicles</td><td class="gR"><b>\'+(vt-vr<=0?"\u2713 Done":(vt-vr)+" Veh")+\'</b></td><td class="gR">\'+(vt>0?(vr/vt*100).toFixed(1)+"%":"\u2014")+\'</td><td class="gR"></td></tr>\';}})();'
