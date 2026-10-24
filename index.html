@@ -2420,6 +2420,37 @@ function countArrivedVehicles(rowsArr){
   (rowsArr||[]).forEach(function(r){ if(stripNum(r.inv_wt) > 0) n++; });
   return n;
 }
+// Calculate the TDS-eligible base for a row, using the same invoice-minus-shortage-claim basis.
+function getTDSBaseForRow(r){
+  var inv = stripNum(r.inv_wt);
+  var rpu = getRatePerUnit();
+  var gstPct = +g('fGST').value || 0;
+  var basic = inv * rpu;
+  var rowInv = basic + basic * gstPct / 100;
+  var grn = stripNum(r.grn_wt);
+  var shortage = grn > 0 ? Math.max(inv - grn, 0) : 0;
+  var rebate = Math.min(stripNum(r.rebate_wt), shortage);
+  var claimable = Math.max(shortage - rebate, 0);
+  var shortClaim = isShortClaimApplied() ? claimable * rpu * (1 + gstPct / 100) : 0;
+  return Math.max(rowInv - shortClaim, 0);
+}
+
+// Bill-wise TDS: with a threshold, only the portion crossing the threshold is taxed;
+// subsequent bills are taxed on their full eligible base. With no threshold, every bill is taxed.
+function computeBillTDS(r, currentBase){
+  var manual = parseFloat(g('fTDSManual') && g('fTDSManual').value) || 0;
+  var thr = parseFloat(g('fTDSThreshold') && g('fTDSThreshold').value) || 0;
+  var pct = parseFloat(g('fTDS') && g('fTDS').value) || 0;
+  if(manual > 0) return 0; // manual total is handled in the summary, not silently duplicated across bills
+  if(thr <= 0) return Math.max(currentBase, 0) * pct / 100;
+  var before = 0;
+  var upto = rows.indexOf(r);
+  if(upto < 0) upto = rows.length;
+  for(var i=0; i<upto; i++) before += getTDSBaseForRow(rows[i]);
+  var taxableThisBill = Math.max(before + currentBase - thr, 0) - Math.max(before - thr, 0);
+  return Math.max(taxableThisBill, 0) * pct / 100;
+}
+
 function calcRow(r){
   var inv    = stripNum(r.inv_wt);
   var grn    = stripNum(r.grn_wt);
@@ -2452,7 +2483,8 @@ function calcRow(r){
   var rowInv = basic + (basic * gstPct / 100);
   var invoice_amount = Math.round(rowInv);
   var tdsPct = +g('fTDS').value || 0;
-  var tds = (rowInv - short_claim) * tdsPct / 100;
+  var tdsBase = Math.max(rowInv - short_claim, 0);
+  var tds = computeBillTDS(r, tdsBase);
   if(tds < 0) tds = 0;
   var net_payable = Math.max(rowInv - short_claim - qual_ded - tds, 0);
   return {shortage_wt:shortage_wt, short_claim:short_claim,
@@ -2795,16 +2827,20 @@ function getStatVars(){
   var basicAmt=T.inv_wt*rpu;
   var gstAmt=basicAmt*(gstPct/100);
   var invAmt=basicAmt+gstAmt;                       // Invoice = Basic + GST
-  // Use bill-wise rounded-then-summed TDS in default mode (matches per-truck TDS column);
-  // fall back to aggregate 194Q-threshold/manual calculation when those are active
+  // Keep summary TDS identical to the visible bill-wise TDS column: round each bill first, then sum.
+  // Threshold crossing is allocated to the bill that crosses the threshold; later bills are taxed on full eligible amount.
   var _tdsThr = +g('fTDSThreshold').value||0;
   var _tdsManual = +g('fTDSManual').value||0;
-  var tdsAmt = (_tdsThr>0 || _tdsManual>0) ? computeTDS(invAmt-T.short_claim) : T.tds;
+  var tdsAmt;
+  if(_tdsManual>0){
+    tdsAmt = Math.round(_tdsManual);
+  } else {
+    tdsAmt = 0;
+    rows.forEach(function(r){ tdsAmt += Math.round(calcRow(r).tds||0); });
+  }
   var billNetRounded=0;
   rows.forEach(function(r){ billNetRounded += Math.round(calcRow(r).net_payable||0); });
-  var netAmt=(_tdsThr>0 || _tdsManual>0 || _dedMode==='average')
-    ? invAmt-T.short_claim-T.qual_ded-adv-tdsAmt
-    : billNetRounded-adv;
+  var netAmt = billNetRounded - adv;
   var unit=g('fWtUnit').value;
   return {invWt:T.inv_wt,grnWt:T.grn_wt,shortWt:T.shortage_wt,
     claimedWt:(T.claimable_wt!==undefined?T.claimable_wt:T.shortage_wt),
@@ -5925,8 +5961,27 @@ function _generateReportFromSelection(selectedReports){
       _sumQualDed += Math.round(rowQd);
       // Bill-wise TDS: round each row's TDS before summing (used in default mode, no threshold/manual)
       _sumTdsBillwise += Math.round((rowInv - rowShort) * _pctForBillTds / 100);
-      // Paid amount: full invoice (not net) since payment was on bill amount
-      if(rr.paid===true){ _paidCnt++; _paidAmt+=rowInv; }
+      // Paid amount must use the same report-specific bill-wise values as the table.
+      // Do not call calcRow() here: it reads the active form controls, which can differ
+      // from this report's saved threshold/TDS settings and incorrectly deduct TDS again.
+      if(rr.paid===true){
+        _paidCnt++;
+        var _paidBase = Math.max(rowInv - rowShort, 0);
+        var _paidThr = +rep.fTDSThreshold || 0;
+        var _paidManualTds = +rep.fTDSManual || 0;
+        var _paidCumBefore = 0;
+        for(var _pi=0; _pi<rows.indexOf(rr); _pi++){
+          var _pr = rows[_pi];
+          var _pc = cRow(_pr,rate,pass,gstPct,(rep.fDedMode||'perTruck'),(rep.fApplyShortClaim!==false));
+          _paidCumBefore += Math.max(((_pc && _pc.ia)||0)-((_pc && _pc.sc)||0),0);
+        }
+        var _paidTaxable = _paidManualTds > 0 ? 0 : (_paidThr > 0
+          ? Math.max(_paidCumBefore + _paidBase - _paidThr, 0) - Math.max(_paidCumBefore - _paidThr, 0)
+          : _paidBase);
+        var _paidTds = _paidManualTds > 0 ? 0 : Math.round(Math.max(_paidTaxable,0) * (+rep.fTDS||0) / 100);
+        var _paidNet = Math.max(Math.round(rowInv) - Math.round(rowShort) - Math.round(rowQd) - _paidTds, 0);
+        _paidAmt += _paidNet;
+      }
     });
     // Override qual ded for average mode (single avg-based value)
     var _qualDedTotal = _sumQualDed;
@@ -5943,22 +5998,43 @@ function _generateReportFromSelection(selectedReports){
       var _dpAvg = Math.max(_avgM-pass,0);
       _qualDedTotal = _sumG * (rate/1000) * (_dpAvg/100);
     }
-    // TDS with 194Q threshold + manual override (uses rep-saved fields)
+    // TDS must reconcile to the per-bill column. Round each bill's threshold allocation before summing.
     var _tdsPct = +rep.fTDS || 0;
     var _tdsThr = +rep.fTDSThreshold || 0;
     var _tdsManual = +rep.fTDSManual || 0;
-    var _ainm = _totInv - _sumShortClaim;
-    var _tdsAmt;
+    var _tdsAmt = 0;
     if(_tdsManual > 0){
-      _tdsAmt = _tdsManual;
-    } else if(_tdsThr > 0){
-      _tdsAmt = _ainm > _tdsThr ? (_ainm - _tdsThr) * _tdsPct / 100 : 0;
+      _tdsAmt = Math.round(_tdsManual);
     } else {
-      // Default mode: bill-wise rounded-then-summed TDS (matches per-truck TDS column)
-      _tdsAmt = _sumTdsBillwise;
+      var _tdsCumBefore = 0;
+      rows.forEach(function(rr){
+        var _ccTds = cRow(rr,rate,pass,gstPct,(rep.fDedMode||'perTruck'),(rep.fApplyShortClaim!==false));
+        var _baseTds = Math.max(((_ccTds && _ccTds.ia)||0) - ((_ccTds && _ccTds.sc)||0), 0);
+        var _taxableTds = _tdsThr > 0
+          ? Math.max(_tdsCumBefore + _baseTds - _tdsThr, 0) - Math.max(_tdsCumBefore - _tdsThr, 0)
+          : _baseTds;
+        _tdsAmt += Math.round(Math.max(_taxableTds,0) * _tdsPct / 100);
+        _tdsCumBefore += _baseTds;
+      });
     }
-    // Net Payable: Invoice − Shortage Claim − Quality Ded − TDS
-    var _netPayable = _totInv - _sumShortClaim - _qualDedTotal - _tdsAmt;
+    // Net Payable uses the same rounded bill-level deductions, so the summary reconciles.
+    var _billNetTotal = 0;
+    rows.forEach(function(rr){
+      var _ccNet = cRow(rr,rate,pass,gstPct,(rep.fDedMode||'perTruck'),(rep.fApplyShortClaim!==false));
+      var _invNet = Math.round((_ccNet && _ccNet.ia)||0);
+      var _shortNet = Math.round((_ccNet && _ccNet.sc)||0);
+      var _qdNet = Math.round((_ccNet && _ccNet.qd)||0);
+      var _billTdsBase = Math.max(((_ccNet && _ccNet.ia)||0) - ((_ccNet && _ccNet.sc)||0),0);
+      var _cumBeforeNet = 0;
+      for(var _ni=0; _ni<rows.indexOf(rr); _ni++){
+        var _prior = cRow(rows[_ni],rate,pass,gstPct,(rep.fDedMode||'perTruck'),(rep.fApplyShortClaim!==false));
+        _cumBeforeNet += Math.max(((_prior && _prior.ia)||0)-((_prior && _prior.sc)||0),0);
+      }
+      var _billTaxableNet = _tdsManual>0 ? 0 : (_tdsThr>0 ? Math.max(_cumBeforeNet+_billTdsBase-_tdsThr,0)-Math.max(_cumBeforeNet-_tdsThr,0) : _billTdsBase);
+      var _billTdsNet = _tdsManual>0 ? 0 : Math.round(Math.max(_billTaxableNet,0)*_tdsPct/100);
+      _billNetTotal += Math.max(_invNet-_shortNet-_qdNet-_billTdsNet,0);
+    });
+    var _netPayable = _billNetTotal;
     var _totAmt = _netPayable;
     // Parse advance amount (lump-sum, not per-bill)
     var _adv = 0;
@@ -5966,6 +6042,8 @@ function _generateReportFromSelection(selectedReports){
       var _av = String(rep.advance).replace(/[^0-9.\-]/g,'');
       _adv = parseFloat(_av)||0;
     }
+    _netPayable -= _adv;
+    _totAmt = _netPayable;
     var payParts=[];
     if(_paidCnt>0){
       payParts.push('\ud83d\udcb0 Paid: '+_paidCnt+'/'+rows.length+' bills (\u20b9'+Math.round(_paidAmt).toLocaleString('en-IN')+')');
