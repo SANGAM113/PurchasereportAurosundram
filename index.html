@@ -1357,8 +1357,8 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
             <option value="vehicle">Vehicle-based (fixed truck count)</option>
           </select>
         </div>
-        <div class="field" id="contractQtyField"><label>Contract Qty (MT or KG)</label><input type="number" id="fContractQty" value="700" step="0.001" oninput="recalcAll()"></div>
-        <div class="field" id="totalVehiclesField" style="display:none"><label>Total Vehicles Contracted</label><input type="number" id="fTotalVehicles" value="5" step="1" min="1" oninput="recalcAll();syncHdr()"></div>
+        <div class="field" id="contractQtyField"><label>Contract Qty (MT or KG)</label><input type="number" id="fContractQty" value="" step="0.001" oninput="recalcAll()"></div>
+        <div class="field" id="totalVehiclesField" style="display:none"><label>Total Vehicles Contracted</label><input type="number" id="fTotalVehicles" value="" placeholder="Enter vehicle qty" step="1" min="1" oninput="recalcAll();syncHdr()"></div>
         <div class="field"><label>Weight Unit</label>
           <select id="fWtUnit" onchange="recalcAll()">
             <option value="KG">KG (Kilograms)</option>
@@ -1366,7 +1366,7 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
             <option value="QTL">QTL (Quintal)</option>
           </select>
         </div>
-        <div class="field"><label>Contract Rate (&#8377; / <span id="rateUnit">MT</span>)</label><input type="number" id="fRate" value="17100" step="0.01" oninput="recalcAll()"></div>
+        <div class="field"><label>Contract Rate (&#8377; / <span id="rateUnit">KG</span>)</label><input type="number" id="fRate" value="" step="0.01" min="0" oninput="recalcAll()" placeholder="Enter contract rate"></div>
         <div class="field"><label>Passing Moisture %</label>
           <div style="display:flex;align-items:center;gap:7px">
             <input type="number" id="fPassMoisture" step="0.01" oninput="recalcAll()" style="flex:1" placeholder="e.g. 10">
@@ -1675,6 +1675,7 @@ var COLS = [
   {k:'inv_no',     label:'Invoice No.',               grp:'main', type:'input', r:false, it:'text',   ph:'',   locked:false, vis:true},
   {k:'veh_no',     label:'Veh. No.',                  grp:'main', type:'input', r:false, it:'text',   ph:'',   locked:false, vis:true},
   {k:'inv_wt',     label:'Invoice Weight',            grp:'main', type:'input', r:true,  it:'number', ph:'0',         locked:false, vis:true},
+  {k:'invoice_amount', label:'Invoice Amount',          grp:'main', type:'calc',  r:true,  cls:'invoice-amount', locked:false, vis:true},
   {k:'grn_wt',     label:'GRN Weight',                grp:'main', type:'input', r:true,  it:'number', ph:'0',         locked:false, vis:true},
   {k:'grn_date',   label:'GRN Date',                  grp:'main', type:'input', r:false, it:'text',   ph:'DD/MM/YY',  locked:false, vis:true},
   {k:'paid',       label:'Paid?',                     grp:'main', type:'paid',  r:false, cls:'c',        locked:false, vis:true},
@@ -1685,6 +1686,7 @@ var COLS = [
   {k:'ded_pct',    label:'Ded % (Moist\u2212Pass)',   grp:'ded',  type:'calc',  r:true,  cls:'ded-auto',    locked:false, vis:true},
   {k:'qual_ded',   label:'Quality Ded. Amt',          grp:'ded',  type:'calc',  r:true,  cls:'ded-amt',     locked:false, vis:true},
   {k:'tds',        label:'TDS Amt',                   grp:'ded',  type:'calc',  r:true,  cls:'tds-amt',     locked:false, vis:false},
+  {k:'net_payable',label:'Net Payable (Bill-wise)',    grp:'ded',  type:'calc',  r:true,  cls:'net-payable', locked:false, vis:true},
   {k:'protein',    label:'Protein',                   grp:'lab',  type:'input', r:true,  it:'number', ph:'0', cls:'lab-cell', locked:false, vis:true},
   {k:'fibre',      label:'Fibre',                     grp:'lab',  type:'input', r:true,  it:'number', ph:'0', cls:'lab-cell', locked:false, vis:true},
   {k:'ash',        label:'Ash',                       grp:'lab',  type:'input', r:true,  it:'number', ph:'0', cls:'lab-cell', locked:false, vis:true},
@@ -1713,7 +1715,7 @@ var FMAP = [
 
 var rows = [], rId = 0;
 var parsedSheet = {headers:[], dataRows:[]};
-var CALC_KEYS = {shortage_wt:1, short_claim:1, ded_pct:1, qual_ded:1};
+var CALC_KEYS = {invoice_amount:1, shortage_wt:1, short_claim:1, ded_pct:1, qual_ded:1, tds:1, net_payable:1};
 
 // ═══════════════════════════════════════
 //  STAT CARD DEFINITIONS
@@ -2448,13 +2450,16 @@ function calcRow(r){
   var basic = inv * rpu;
   var gstPct = +g('fGST').value || 0;
   var rowInv = basic + (basic * gstPct / 100);
+  var invoice_amount = Math.round(rowInv);
   var tdsPct = +g('fTDS').value || 0;
   var tds = (rowInv - short_claim) * tdsPct / 100;
   if(tds < 0) tds = 0;
+  var net_payable = Math.max(rowInv - short_claim - qual_ded - tds, 0);
   return {shortage_wt:shortage_wt, short_claim:short_claim,
           rebate_wt:rebate_wt, claimable_wt:claimable_wt,
           ded_pct_val:ded_pct_val, qual_ded:qual_ded, tds:tds,
-          inv_wt:inv, grn_wt:grn, moisture:moist};
+          net_payable:Math.max(invoice_amount - Math.round(short_claim) - Math.round(qual_ded) - Math.round(tds), 0),
+          invoice_amount:invoice_amount, rowInv:rowInv, inv_wt:inv, grn_wt:grn, moisture:moist};
 }
 
 function evalCustomFormula(formula, r, calc){
@@ -2640,7 +2645,11 @@ function highlightDuplicateInvoiceNos(){
 }
 
 function setCellCalcValue(td, k, r, calc){
-  if(k==='shortage_wt'){
+  if(k==='invoice_amount'){
+    td.className='invoice-amount r';
+    td.textContent='₹ '+fmtI(calc.invoice_amount||0);
+    td.title='Invoice Weight × rate per selected unit + GST';
+  } else if(k==='shortage_wt'){
     if(calc.shortage_wt<=0){td.className='r c';td.textContent='0';}
     else{td.className='shortage-wt r';td.textContent=fmtN(calc.shortage_wt,0);}
   } else if(k==='ded_pct'){
@@ -2660,6 +2669,12 @@ function setCellCalcValue(td, k, r, calc){
     td.innerHTML='&#8377; '+fmtI(calc.tds||0);
     td.style.background='#fef9c3';
     td.style.color='#713f12';
+  } else if(k==='net_payable'){
+    td.className='net-payable r';
+    td.innerHTML='<b>&#8377; '+fmtI(calc.net_payable||0)+'</b>';
+    td.style.background='#ecfdf5';
+    td.style.color='#065f46';
+    td.title='Bill amount including GST − shortage claim − quality deduction − TDS. Contract-level advance is not allocated to individual bills.';
   } else if(all_col_custom(k) && r){
     // custom formula column
     var col=getAllColDefs()[k];
@@ -2699,15 +2714,15 @@ function onCell(e){
 // ═══════════════════════════════════════
 function renderFoot(){
   var vc=visCols(), all=getAllColDefs();
-  var T={inv_wt:0,grn_wt:0,shortage_wt:0,short_claim:0,qual_ded:0,tds:0};
+  var T={inv_wt:0,invoice_amount:0,grn_wt:0,shortage_wt:0,short_claim:0,qual_ded:0,tds:0,net_payable:0};
   var sumMoist=0, cntMoist=0;
   // Lab column sums for averages
   var labSum={protein:0,fibre:0,ash:0,sand_silica:0};
   var labCnt={protein:0,fibre:0,ash:0,sand_silica:0};
   rows.forEach(function(r){
     var c=calcRow(r);
-    T.inv_wt+=+r.inv_wt||0; T.grn_wt+=+r.grn_wt||0;
-    T.shortage_wt+=c.shortage_wt; T.short_claim+=c.short_claim; T.qual_ded+=Math.round(c.qual_ded);T.tds+=Math.round(c.tds||0);T.claimable_wt=(T.claimable_wt||0)+(c.claimable_wt||0);
+    T.inv_wt+=+r.inv_wt||0; T.invoice_amount+=c.invoice_amount||0; T.grn_wt+=+r.grn_wt||0;
+    T.shortage_wt+=c.shortage_wt; T.short_claim+=Math.round(c.short_claim||0); T.qual_ded+=Math.round(c.qual_ded||0);T.tds+=Math.round(c.tds||0);T.net_payable+=Math.round(c.net_payable||0);T.claimable_wt=(T.claimable_wt||0)+(c.claimable_wt||0);
     if(c.moisture > 0){ sumMoist += c.moisture; cntMoist++; }
     ['protein','fibre','ash','sand_silica'].forEach(function(lk){
       var v=parseFloat(r[lk]);
@@ -2727,6 +2742,7 @@ function renderFoot(){
     var val='';
     if(k==='sr')           val='TOTAL';
     else if(k==='inv_wt')  val=fmtN(T.inv_wt,0);
+    else if(k==='invoice_amount'){val='₹ '+fmtI(T.invoice_amount);cls='invoice-amount r col-invoice_amount';}
     else if(k==='grn_wt')  val=fmtN(T.grn_wt,0);
     else if(k==='shortage_wt'){val=fmtN(T.shortage_wt,0);cls='shortage-wt r col-shortage_wt';}
     else if(k==='short_claim'){val='&#8377; '+fmtI(T.short_claim);cls='ded-amt r col-short_claim';}
@@ -2737,6 +2753,7 @@ function renderFoot(){
     }
     else if(k==='qual_ded'){   val='&#8377; '+fmtI(T.qual_ded);   cls='ded-amt r col-qual_ded';}
     else if(k==='tds'){   val='&#8377; '+fmtI(T.tds);   cls='tds-amt r col-tds';}
+    else if(k==='net_payable'){ val='<b>&#8377; '+fmtI(T.net_payable)+'</b>'; cls='net-payable r col-net_payable';}
     else if((k==='protein'||k==='fibre'||k==='ash'||k==='sand_silica') && isShowLabAvg()){
       // Show average for lab columns when toggle is on
       var lc = labCnt[k]||0;
@@ -2783,7 +2800,11 @@ function getStatVars(){
   var _tdsThr = +g('fTDSThreshold').value||0;
   var _tdsManual = +g('fTDSManual').value||0;
   var tdsAmt = (_tdsThr>0 || _tdsManual>0) ? computeTDS(invAmt-T.short_claim) : T.tds;
-  var netAmt=invAmt-T.short_claim-T.qual_ded-adv-tdsAmt;
+  var billNetRounded=0;
+  rows.forEach(function(r){ billNetRounded += Math.round(calcRow(r).net_payable||0); });
+  var netAmt=(_tdsThr>0 || _tdsManual>0 || _dedMode==='average')
+    ? invAmt-T.short_claim-T.qual_ded-adv-tdsAmt
+    : billNetRounded-adv;
   var unit=g('fWtUnit').value;
   return {invWt:T.inv_wt,grnWt:T.grn_wt,shortWt:T.shortage_wt,
     claimedWt:(T.claimable_wt!==undefined?T.claimable_wt:T.shortage_wt),
@@ -3420,8 +3441,8 @@ function defaultReport(name){
     name: name || ('Report '+tabIdCtr),
     // contract config
     fTitle:'Raw Material Purchase Report',
-    fVendor:'',fMaterial:'',fContractQty:'700',fContractType:'weight',fTotalVehicles:'5',
-    fWtUnit:'KG',fRate:'17100',fPassMoisture:'',fGST:'0',fDedMode:'perTruck',fAdvancePaid:false,fPayStatus:'pending',fDeliveryTerms:'FOR',fContractDate:'',fPdfHeader:'',
+    fVendor:'',fMaterial:'',fContractQty:'',fContractType:'weight',fTotalVehicles:'',
+    fWtUnit:'KG',fRate:'',fPassMoisture:'',fGST:'0',fDedMode:'perTruck',fAdvancePaid:false,fPayStatus:'pending',fDeliveryTerms:'FOR',fContractDate:'',fPdfHeader:'',
     fTDS:'0.1',fTDSThreshold:0,fTDSManual:0,fShowTDSCol:false,fShowLabAvg:false,fApplyLabStd:false,advanceLedger:[],fStdMoistureMin:'',fStdMoistureMax:'',fStdProteinMin:'',fStdProteinMax:'',fStdFibreMin:'',fStdFibreMax:'',fStdAshMin:'',fStdAshMax:'',fStdSandMin:'',fStdSandMax:'',paymentSummaryVis:true,fPO:'',fDate:dd+'/'+mm+'/'+today.getFullYear(),fPrepBy:'',
     advance:'0',
     // table
@@ -3514,14 +3535,14 @@ function loadTab(idx){
   g('fTitle').value       = r.fTitle      ||'';
   g('fVendor').value      = r.fVendor     ||'';
   g('fMaterial').value    = r.fMaterial   ||'';
-  g('fContractQty').value = r.fContractQty||'700';
+  g('fContractQty').value = r.fContractQty != null ? r.fContractQty : '';
   if(g('fContractType')) g('fContractType').value = r.fContractType||'weight';
-  if(g('fTotalVehicles')) g('fTotalVehicles').value = r.fTotalVehicles||'5';
+  if(g('fTotalVehicles')) g('fTotalVehicles').value = r.fTotalVehicles != null ? r.fTotalVehicles : '';
   if(typeof toggleContractType==='function') toggleContractType();
   g('fWtUnit').value      = r.fWtUnit     ||'KG';
   g('fWtUnit').dataset.prevUnit = g('fWtUnit').value;
   setTimeout(function(){_updateRateUnitLabel();},0);
-  g('fRate').value        = r.fRate       ||'17100';
+  g('fRate').value        = (r.fRate !== undefined && r.fRate !== null) ? r.fRate : '';
   g('fPassMoisture').value= r.fPassMoisture||'';
   g('fGST').value         = r.fGST        ||'0';
   g('fDedMode').value     = r.fDedMode    ||'perTruck';
@@ -4306,6 +4327,7 @@ function _buildAndDownloadExcel(rep){
       else if(k==='inv_no') val = r.inv_no||'';
       else if(k==='veh_no') val = r.veh_no||'';
       else if(k==='inv_wt'){ val = calc.inv_wt||0; type='n'; }
+      else if(k==='invoice_amount'){ val = calc.invoice_amount||0; type='n'; st='sMoneyBold'; }
       else if(k==='grn_wt'){ val = calc.grn_wt||0; type='n'; }
       else if(k==='grn_date') val = r.grn_date||'';
       else if(k==='shortage_wt'){ val = calc.shortage_wt>0?calc.shortage_wt:''; type = val?'n':'s'; st='sShortage'; }
@@ -4315,6 +4337,7 @@ function _buildAndDownloadExcel(rep){
       else if(k==='ded_pct'){ val = calc.ded_pct_val>0?calc.ded_pct_val.toFixed(2)+'%':''; st='sDedPct'; }
       else if(k==='qual_ded'){ val = calc.qual_ded>0?Math.round(calc.qual_ded):''; type = val?'n':'s'; st='sDedAmt'; }
       else if(k==='tds'){ val = calc.tds>0?Math.round(calc.tds):''; type = val?'n':'s'; st='sTds'; }
+      else if(k==='net_payable'){ val = Math.round(calc.net_payable||0); type='n'; st='sNetPayable'; }
       else if(k==='paid') val = r.paid===true?'Paid':'Pending';
       else if(c.grp==='lab'){ val = r[k]||''; st='sLab'; }
       else val = r[k]||'';
@@ -4324,7 +4347,7 @@ function _buildAndDownloadExcel(rep){
   });
 
   // Total row — dynamic leading-label merge (robust to column reorder/hide)
-  var TOTAL_KEYS = {inv_wt:1, grn_wt:1, shortage_wt:1, short_claim:1, qual_ded:1, tds:1};
+  var TOTAL_KEYS = {inv_wt:1, invoice_amount:1, grn_wt:1, shortage_wt:1, short_claim:1, qual_ded:1, tds:1, net_payable:1};
   var leadingLabelCount = 0;
   for(var li=0; li<vc.length; li++){
     if(TOTAL_KEYS[vc[li]]) break;
@@ -4342,6 +4365,7 @@ function _buildAndDownloadExcel(rep){
     else if(k==='short_claim'){ val = Math.round(V.shortClaim); type='n'; }
     else if(k==='qual_ded'){ val = Math.round(V.qualDed); type='n'; }
     else if(k==='tds'){ val = Math.round(V.tdsAmt||0); type='n'; }
+    else if(k==='net_payable'){ val = rows.reduce(function(sum,r){ return sum + Math.round(calcRow(r).net_payable||0); },0); type='n'; }
     totCells += _xmlCell(val, 'sTotRow', type);
   });
   rowsXml.push('<Row>'+totCells+'</Row>');
@@ -4528,8 +4552,8 @@ function _generateExcelFromSelection(selectedReports){
     html += '<br><table style="width:100%">';
     html += '<tr><td class="section-title" colspan="'+(hasLab?16:12)+'">&#127919; '+(i+1)+'. '+vendor
       + (isAdv?' [ADVANCE PAID — No Claims]':'')
-      + '<br><span style="font-size:11px;color:#666">'+(rep.fMaterial||'')+' · '+(rep.fContractQty||'')+' '+(rep.fWtUnit||'')
-      + (rep.fRate?' · ₹'+rep.fRate+'/MT':'')+(gstPct>0?' + '+gstPct+'% GST':'')+'</span></td></tr>';
+      + '<br><span style="font-size:11px;color:#666">'+(rep.fMaterial||'')+' · '+(rep.fContractType==='vehicle' ? ((rep.fTotalVehicles && +rep.fTotalVehicles>0) ? 'Vehicle Qty: '+rep.fTotalVehicles+' Vehicle'+(+rep.fTotalVehicles===1?'':'s') : 'Vehicle Qty: Not entered') : ((rep.fContractQty && +rep.fContractQty>0) ? 'Contract Qty: '+rep.fContractQty+' '+(rep.fWtUnit||'KG') : 'Contract Qty: Not entered'))
+      + (rep.fRate?' · ₹'+rep.fRate+'/'+(rep.fWtUnit||'KG'):'')+(gstPct>0?' + '+gstPct+'% GST':'')+'</span></td></tr>';
 
     // Group header
     var dedCount = isAdv ? 1 : 4; // if advance: only Shortage Wt; else 4 ded cols
@@ -5327,8 +5351,8 @@ var colWidths = {};   // key → px width
 // Store default widths by col key
 var COL_DEFAULT_WIDTHS = {
   sr:40, inv_date:82, inv_no:110, veh_no:95,
-  inv_wt:80, grn_wt:80, grn_date:82,
-  shortage_wt:72, short_claim:88,
+  inv_wt:80, invoice_amount:125, grn_wt:80, grn_date:82,
+  shortage_wt:72, short_claim:88, net_payable:130,
   moisture:68, ded_pct:82, qual_ded:90,
   protein:58, fibre:52, ash:50, sand_silica:68,
   actions:36
@@ -5349,7 +5373,7 @@ function applyColWidths(){
     cg = document.createElement('colgroup');
     table.insertBefore(cg, table.firstChild);
   }
-  var PCLS = {"sr": "pc-sr", "inv_date": "pc-inv-date", "inv_no": "pc-inv-no", "veh_no": "pc-veh-no", "inv_wt": "pc-inv-wt", "grn_wt": "pc-grn-wt", "grn_date": "pc-grn-date", "shortage_wt": "pc-shortage-wt", "short_claim": "pc-short-claim", "moisture": "pc-moisture", "ded_pct": "pc-ded-pct", "qual_ded": "pc-qual-ded", "protein": "pc-protein", "fibre": "pc-fibre", "ash": "pc-ash", "sand_silica": "pc-sand-silica", "actions": "pc-actions"};
+  var PCLS = {"sr": "pc-sr", "inv_date": "pc-inv-date", "inv_no": "pc-inv-no", "veh_no": "pc-veh-no", "inv_wt": "pc-inv-wt", "invoice_amount": "pc-invoice-amount", "grn_wt": "pc-grn-wt", "grn_date": "pc-grn-date", "shortage_wt": "pc-shortage-wt", "short_claim": "pc-short-claim", "net_payable": "pc-net-payable", "moisture": "pc-moisture", "ded_pct": "pc-ded-pct", "qual_ded": "pc-qual-ded", "protein": "pc-protein", "fibre": "pc-fibre", "ash": "pc-ash", "sand_silica": "pc-sand-silica", "actions": "pc-actions"};
   cg.innerHTML = vc.map(function(k){
     var pcls = PCLS[k] ? ' class="'+PCLS[k]+'"' : '';
     return '<col'+pcls+' style="width:'+getColWidth(k)+'px;min-width:'+getColWidth(k)+'px">';
@@ -5418,7 +5442,8 @@ function autoFitAllCols(){
         val = String(r[k] || '');
       } else if(col.type === 'calc'){
         var calc = calcRow(r);
-        if(k==='shortage_wt') val = String(calc.shortage_wt||0);
+        if(k==='invoice_amount') val = '₹ '+fmtI(calc.invoice_amount||0);
+        else if(k==='shortage_wt') val = String(calc.shortage_wt||0);
         else if(k==='ded_pct') val = (calc.ded_pct_val||0).toFixed(2)+'%';
         else if(k==='short_claim') val = '₹ '+fmtI(calc.short_claim);
         else if(k==='qual_ded')    val = '₹ '+fmtI(calc.qual_ded);
@@ -5576,7 +5601,9 @@ function showContractSelectionModal(){
     var rowCount=(rep.rows||[]).length;
     var bits=[];
     if(rep.fMaterial) bits.push(rep.fMaterial);
-    if(rep.fContractQty) bits.push(rep.fContractQty+' '+rep.fWtUnit);
+    if(rep.fContractType==='vehicle'){
+      if(rep.fTotalVehicles && +rep.fTotalVehicles>0) bits.push(rep.fTotalVehicles+' Vehicle'+(+rep.fTotalVehicles===1?'':'s'));
+    } else if(rep.fContractQty && +rep.fContractQty>0) bits.push(rep.fContractQty+' '+(rep.fWtUnit||'KG'));
     if(rep.fRate) bits.push('\u20b9'+rep.fRate+'/'+(rep.fWtUnit||'KG'));
     var meta=bits.join(' \u00b7 ');
     var rowsLabel=rowCount+' truck'+(rowCount===1?'':'s');
@@ -5854,7 +5881,7 @@ function _generateReportFromSelection(selectedReports){
     // EMPTY CONTRACT — render a placeholder block instead of skipping
     if(!rows.length){
       var subEmpty=[rep.fMaterial,
-        rep.fContractQty?rep.fContractQty+' '+rep.fWtUnit:'',
+        (rep.fContractType==='vehicle' ? ((rep.fTotalVehicles && +rep.fTotalVehicles>0) ? '🚚 Vehicle Qty: '+rep.fTotalVehicles+' Vehicle'+(+rep.fTotalVehicles===1?'':'s') : '🚚 Vehicle Qty: Not entered') : (rep.fContractQty && +rep.fContractQty>0 ? 'Contract Qty: '+rep.fContractQty+' '+(rep.fWtUnit||'KG') : '')),
         rep.fRate?'\u20b9'+rep.fRate+'/'+(rep.fWtUnit||'KG')+(gstPct>0?' + '+gstPct+'% GST':''):'',
         rep.fPassMoisture?'Passing: '+rep.fPassMoisture+'%':'',
         rep.fContractDate?'\ud83d\udcc5 '+rep.fContractDate:'',
@@ -5965,7 +5992,7 @@ function _generateReportFromSelection(selectedReports){
     var dt = rep.fDeliveryTerms||'FOR';
     var dtBadge = '<span style="display:inline-block;padding:1px 8px;border-radius:9px;font-size:9.5px;font-weight:700;background:'+(dt==='FOR'?'#dbeafe':dt==='Ex-Factory'||dt==='Ex-Mill'?'#fef3c7':'#e0e7ff')+';color:'+(dt==='FOR'?'#1e3a8a':dt==='Ex-Factory'||dt==='Ex-Mill'?'#78350f':'#3730a3')+';margin-left:2px;letter-spacing:.3px">\ud83d\ude9a '+dt+'</span>';
     var sub=[rep.fMaterial,
-      rep.fContractQty?rep.fContractQty+' '+rep.fWtUnit:'',
+      (rep.fContractType==='vehicle' ? ((rep.fTotalVehicles && +rep.fTotalVehicles>0) ? '🚚 Vehicle Qty: '+rep.fTotalVehicles+' Vehicle'+(+rep.fTotalVehicles===1?'':'s') : '🚚 Vehicle Qty: Not entered') : (rep.fContractQty && +rep.fContractQty>0 ? 'Contract Qty: '+rep.fContractQty+' '+(rep.fWtUnit||'KG') : '')),
       rep.fRate?'\u20b9'+rep.fRate+'/'+(rep.fWtUnit||'KG')+(gp>0?' + '+gp+'% GST':''):'',
       rep.fPassMoisture?'Passing: '+rep.fPassMoisture+'%':'',
       rep.fContractDate?'\ud83d\udcc5 Contract Date: '+rep.fContractDate:'',
