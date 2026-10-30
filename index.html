@@ -1607,7 +1607,7 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
             <td class="s-ded"><span id="st5">&#8377; 0</span></td>
             <td class="adv-cell" style="background:var(--goldpale)">
               <div style="display:flex;align-items:center;gap:6px">
-                <input class="adv-input" type="text" id="advInput" value="0" placeholder="&#8377; 0" oninput="recalcAll()" onfocus="onAdvFocus()" onblur="onAdvBlur()" style="border:2px solid var(--border);border-radius:6px;padding:8px 12px;font-family:'Calibri',Arial,sans-serif;text-align:right;font-size:16px;font-weight:800;background:#fff;width:100%;color:#0b1f3a">
+                <input class="adv-input" type="text" id="advInput" value="0" placeholder="&#8377; 0" oninput="onAdvanceInputChanged()" onfocus="onAdvFocus()" onblur="onAdvBlur()" style="border:2px solid var(--border);border-radius:6px;padding:8px 12px;font-family:'Calibri',Arial,sans-serif;text-align:right;font-size:16px;font-weight:800;background:#fff;width:100%;color:#0b1f3a">
                 <button onclick="openAdvanceLedger()" title="Show/add date-wise advance payment entries" style="flex-shrink:0;width:34px;height:34px;border:1.5px solid #d4a645;border-radius:6px;background:#fffbeb;color:#78350f;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center" class="no-print">&#128197;</button>
               </div>
               <div id="advLedgerInline" style="margin-top:6px"></div>
@@ -2345,6 +2345,12 @@ function isAdvancePaid(){
 }
 
 // ── Format advInput (Payment Summary) as ₹ Indian amount on blur ──
+function onAdvanceInputChanged(){
+  var el=g('advInput');
+  var rep=reports[activeTab];
+  if(rep && el) rep.advance = String(Math.max(parseFloat(stripNum(el.value))||0,0));
+  recalcAll();
+}
 function onAdvFocus(){
   // When user clicks the field, strip formatting so they can edit raw number
   var el=g('advInput'); if(!el) return;
@@ -2359,6 +2365,8 @@ function onAdvBlur(){
   } else {
     el.value = '\u20b9 0';
   }
+  var rep=reports[activeTab];
+  if(rep) rep.advance = String(Math.max(n,0));
   recalcAll();
 }
 
@@ -2507,6 +2515,36 @@ function evalCustomFormula(formula, r, calc){
   }catch(e){return 'ERR';}
 }
 
+
+// ═══════════════════════════════════════
+//  PAYMENT ALLOCATION — oldest bill first
+//  Ledger payments are allocated to bill net-payables in row/date order.
+// ═══════════════════════════════════════
+function getPaymentAllocationSnapshot(){
+  var rep = reports[activeTab];
+  var ledger = rep && Array.isArray(rep.advanceLedger) ? rep.advanceLedger : [];
+  var ledgerTotal = ledger.reduce(function(s,e){ return s + (parseFloat(e.amount)||0); }, 0);
+  // The user can enter Advance Paid directly in the summary field without opening the ledger.
+  // Use the greater value to avoid ignoring that amount or double-counting ledger entries.
+  var enteredAdvance = parseFloat(stripNum((g('advInput') && reports[activeTab]===rep) ? g('advInput').value : (rep && rep.advance))) || 0;
+  var paymentTotal = Math.max(ledgerTotal, enteredAdvance);
+  var remaining = Math.max(paymentTotal, 0);
+  var alloc = {};
+  var totalBills = 0;
+  rows.forEach(function(r){
+    var c = calcRow(r);
+    var net = Math.max(Math.round((c && c.net_payable)||0), 0);
+    totalBills += net;
+    var applied = Math.min(net, remaining);
+    alloc[r.id] = {net:net, applied:applied, balance:Math.max(net-applied,0),
+      status: applied >= net && net > 0 ? 'Paid' : applied > 0 ? 'Partial' : 'Pending'};
+    remaining = Math.max(remaining-applied,0);
+  });
+  return {byId:alloc, paymentTotal:paymentTotal,
+    adjusted:paymentTotal-remaining, unallocated:remaining,
+    totalBills:totalBills, outstanding:Math.max(totalBills-(paymentTotal-remaining),0)};
+}
+
 // ═══════════════════════════════════════
 //  ROW OPS
 // ═══════════════════════════════════════
@@ -2589,6 +2627,7 @@ function renderHead(){
 //  RENDER BODY
 // ═══════════════════════════════════════
 function renderBody(){
+  var _paymentAlloc = getPaymentAllocationSnapshot();
   var vc=visCols(), all=getAllColDefs();
   var tbody=g('tBody');
   tbody.innerHTML='';
@@ -2607,17 +2646,68 @@ function renderBody(){
       } else if(col.type==='paid'){
         var pchk=document.createElement('input');
         pchk.type='checkbox';
-        pchk.checked = r.paid===true;
+        var _allocation = _paymentAlloc.byId[r.id] || {net:0,applied:0,balance:0,status:'Pending'};
+        // Manual checkbox overrides the displayed status; otherwise ledger allocation is shown.
+        var _manualSet = r.paidManualSet===true;
+        var _isPaid = _manualSet ? r.paidManual===true : _allocation.status==='Paid';
+        var _isPartial = !_manualSet && _allocation.status==='Partial';
+        pchk.checked = _isPaid;
+        pchk.disabled = false;
         pchk.style.cssText='width:16px;height:16px;accent-color:#15803d;cursor:pointer';
-        pchk.title='Mark this truck/bill as PAID';
+        pchk.title = _manualSet
+          ? 'Manual status: ' + (_isPaid ? 'Paid' : 'not manually marked paid') + '. Payment allocation remains ledger-based.'
+          : _allocation.status + ' — allocated ₹' + Math.round(_allocation.applied).toLocaleString('en-IN') +
+            ' of ₹' + Math.round(_allocation.net).toLocaleString('en-IN') +
+            (_allocation.balance>0 ? '; pending ₹'+Math.round(_allocation.balance).toLocaleString('en-IN') : '');
         pchk.addEventListener('change',function(){
-          r.paid = pchk.checked;
-          td.style.background = r.paid ? '#dcfce7' : '';
+          var repNow = reports[activeTab];
+          if(!repNow) return;
+          if(!Array.isArray(repNow.advanceLedger)) repNow.advanceLedger = [];
+          // A manual Paid tick creates a linked payment-ledger entry for this bill.
+          // Unticking removes only that checkbox-generated entry, not separately entered payments.
+          var ledgerNow = repNow.advanceLedger;
+          var linkedIdx = ledgerNow.findIndex(function(e){ return String(e.sourceRowId)===String(r.id); });
+          if(pchk.checked){
+            if(linkedIdx < 0){
+              var billCalc = calcRow(r);
+              var billNet = Math.max(Math.round((billCalc && billCalc.net_payable)||0),0);
+              if(billNet <= 0){
+                pchk.checked = false;
+                toast('✕ Bill Net Payable is zero; no payment entry added','error');
+                return;
+              }
+              var now = new Date();
+              var dateStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+              ledgerNow.push({date:dateStr, amount:billNet, note:'Manual Paid — bill '+(r.inv_no||r.veh_no||r.id), sourceRowId:r.id});
+            }
+            r.paidManualSet = true;
+            r.paidManual = true;
+          } else {
+            if(linkedIdx >= 0) ledgerNow.splice(linkedIdx,1);
+            r.paidManualSet = true;
+            r.paidManual = false;
+          }
+          syncAdvanceTotalToInput();
+          renderAdvanceLedger();
           recalcAll();
+          renderBody();
         });
         td.style.textAlign='center';
-        if(r.paid===true) td.style.background='#dcfce7';
+        if(_isPaid) td.style.background='#dcfce7';
+        else if(_isPartial) { td.style.background='#fef3c7'; td.title=pchk.title; }
+        else td.title=pchk.title;
         td.appendChild(pchk);
+        if(_manualSet){
+          var _manualTag=document.createElement('div');
+          _manualTag.textContent=_isPaid?'Manual Paid':'Manual Pending';
+          _manualTag.style.cssText='font-size:9px;font-weight:700;color:'+(_isPaid?'#166534':'#64748b')+';margin-top:2px';
+          td.appendChild(_manualTag);
+        } else if(_isPartial){
+          var _partialTag=document.createElement('div');
+          _partialTag.textContent='Partial';
+          _partialTag.style.cssText='font-size:9px;font-weight:700;color:#92400e;margin-top:2px';
+          td.appendChild(_partialTag);
+        }
       } else if(k==='actions'){
         td.innerHTML='<button class="del-btn" onclick="delRow('+r.id+')" title="Delete">&#10005;</button>';
       } else if(col.type==='calc'){
@@ -6042,29 +6132,44 @@ function _generateReportFromSelection(selectedReports){
       var _av = String(rep.advance).replace(/[^0-9.\-]/g,'');
       _adv = parseFloat(_av)||0;
     }
-    _netPayable -= _adv;
-    _totAmt = _netPayable;
+    // Payments are allocated to bills once, oldest first. Do not deduct the ledger
+    // total from net payable and then add it again to the paid total.
+    // Build payment reconciliation for THIS report, not the currently active tab.
+    // The truck-detail export loops over all contracts, so using the active-tab
+    // snapshot here incorrectly repeats the same outstanding amount on every contract.
+    var _thisLedger = Array.isArray(rep.advanceLedger) ? rep.advanceLedger : [];
+    var _thisLedgerTotal = _thisLedger.reduce(function(s,e){ return s + (parseFloat(e.amount)||0); }, 0);
+    // Include the amount typed directly in Advance Paid, not only ledger entries.
+    var _thisEnteredAdvance = parseFloat(stripNum(rep.advance)) || 0;
+    var _thisPaymentTotal = Math.max(_thisLedgerTotal, _thisEnteredAdvance);
+    var _thisUnallocated = Math.max(_thisPaymentTotal - _billNetTotal, 0);
+    var _thisAdjusted = Math.min(_thisPaymentTotal, _billNetTotal);
+    var _allocationSummary = {
+      paymentTotal: _thisPaymentTotal,
+      adjusted: _thisAdjusted,
+      unallocated: _thisUnallocated,
+      outstanding: Math.max(_billNetTotal - _thisAdjusted, 0)
+    };
+    _totAmt = _billNetTotal;
     var payParts=[];
-    if(_paidCnt>0){
-      payParts.push('\ud83d\udcb0 Paid: '+_paidCnt+'/'+rows.length+' bills (\u20b9'+Math.round(_paidAmt).toLocaleString('en-IN')+')');
-    }
     if(_adv>0){
       var _ledger = rep.advanceLedger||[];
       if(_ledger.length>0){
         var _breakdown = _ledger.map(function(e){ return e.date+': \u20b9'+Math.round(+e.amount||0).toLocaleString('en-IN')+(e.note?' ('+e.note+')':''); }).join(' | ');
-        payParts.push('<span title="'+_breakdown.replace(/"/g,'&quot;')+'">\ud83d\udcb5 Advance: \u20b9'+Math.round(_adv).toLocaleString('en-IN')+' ('+_ledger.length+' pmt'+(_ledger.length===1?'':'s')+')</span>');
+        payParts.push('<span title="'+_breakdown.replace(/"/g,'&quot;')+'">Total Payment Made: \u20b9'+Math.round(_allocationSummary.paymentTotal).toLocaleString('en-IN')+' ('+_ledger.length+' entr'+(_ledger.length===1?'y':'ies')+')</span>');
       } else {
-        payParts.push('\ud83d\udcb5 Advance: \u20b9'+Math.round(_adv).toLocaleString('en-IN'));
+        payParts.push('Total Payment Made: \u20b9'+Math.round(_allocationSummary.paymentTotal).toLocaleString('en-IN'));
+      }
+      payParts.push('Adjusted Against Bills: \u20b9'+Math.round(_allocationSummary.adjusted).toLocaleString('en-IN'));
+      if(_allocationSummary.unallocated>0){
+        payParts.push('Unallocated Payment Balance: \u20b9'+Math.round(_allocationSummary.unallocated).toLocaleString('en-IN'));
       }
     }
-    var _totalPaid = _paidAmt + _adv;
-    if(_totalPaid>0){
-      var _bal = _totAmt - _totalPaid;
-      if(_bal > 0){
-        payParts.push('Balance: \u20b9'+Math.round(_bal).toLocaleString('en-IN'));
-      } else {
-        payParts.push('\u2713 Fully Paid');
-      }
+    var _bal = _allocationSummary.outstanding;
+    if(_bal > 0){
+      payParts.push('Outstanding Payable: \u20b9'+Math.round(_bal).toLocaleString('en-IN'));
+    } else if(_totAmt>0){
+      payParts.push('\u2713 Bills Fully Covered');
     }
     var payStr = payParts.join(' \u00b7 ');
     var dt = rep.fDeliveryTerms||'FOR';
@@ -6103,9 +6208,37 @@ function _generateReportFromSelection(selectedReports){
     if(hasLab && !hasAnyLabData) emptyCls+=' no-lab';
     if(rep.fAdvancePaid===true) emptyCls+=' cb-advance';
     var T={inv:0,grn:0,sw:0,sc:0,qd:0,ia:0};
+    // Contract-report status uses this contract's own payment ledger, allocated oldest bill first.
+    var _contractPayments = Array.isArray(rep.advanceLedger) ? rep.advanceLedger : [];
+    var _contractLedgerTotal = _contractPayments.reduce(function(s,e){ return s + (parseFloat(e.amount)||0); },0);
+    var _contractEnteredAdvance = parseFloat(stripNum(rep.advance)) || 0;
+    var _contractPaymentRemaining = Math.max(_contractLedgerTotal, _contractEnteredAdvance);
+    var _contractCumEligible = 0;
+    var _contractPaymentStatus = {};
+    rows.forEach(function(_pr){
+      var _pc = cRow(_pr,rate,pass,gstPct,(rep.fDedMode||'perTruck'),(rep.fApplyShortClaim!==false));
+      var _invAmt = Math.max((_pc && _pc.ia)||0,0);
+      var _shortAmt = Math.max((_pc && _pc.sc)||0,0);
+      var _qualAmt = Math.max((_pc && _pc.qd)||0,0);
+      var _eligible = Math.max(_invAmt-_shortAmt,0);
+      var _threshold = +rep.fTDSThreshold||0;
+      var _manualTds = +rep.fTDSManual||0;
+      var _taxable = _manualTds>0 ? 0 : (_threshold>0
+        ? Math.max(_contractCumEligible+_eligible-_threshold,0)-Math.max(_contractCumEligible-_threshold,0)
+        : _eligible);
+      var _tds = _manualTds>0 ? 0 : Math.round(Math.max(_taxable,0)*(+rep.fTDS||0)/100);
+      var _net = Math.max(Math.round(_invAmt)-Math.round(_shortAmt)-Math.round(_qualAmt)-_tds,0);
+      _contractCumEligible += _eligible;
+      var _applied = Math.min(_net,_contractPaymentRemaining);
+      _contractPaymentRemaining = Math.max(_contractPaymentRemaining-_applied,0);
+      _contractPaymentStatus[_pr.id] = {net:_net,applied:_applied,status:_applied>=_net&&_net>0?'Paid':_applied>0?'Partial':'Pending'};
+    });
     var rHtml=rows.map(function(r,ri){
       var c=cRow(r,rate,pass,gstPct,(rep.fDedMode||'perTruck'),(rep.fApplyShortClaim!==false));
       T.inv+=c.inv;T.grn+=c.grn;T.sw+=c.sw;T.sc+=c.sc;T.qd+=c.qd;T.ia+=c.ia;
+      var _ps = _contractPaymentStatus[r.id] || {status:'Pending',applied:0,net:0};
+      var _manualPaid = r.paidManualSet===true && r.paidManual===true;
+      var _displayPaymentStatus = _manualPaid ? 'Paid' : _ps.status;
       return '<tr>'
         +'<td class="tc">'+(ri+1)+'</td>'
         +'<td class="tc">'+(r.inv_date||'')+'</td>'
@@ -6114,7 +6247,7 @@ function _generateReportFromSelection(selectedReports){
         +'<td class="tr">'+(c.inv?c.inv.toLocaleString('en-IN'):'')+'</td>'
         +'<td class="tr">'+(c.grn?c.grn.toLocaleString('en-IN'):'')+'</td>'
         +'<td class="tc">'+(r.grn_date||'')+'</td>'
-        +'<td class="tc c-paid">'+(r.paid===true?'<span style="color:#15803d;font-weight:700">Paid</span>':'<span style="color:#b45309;font-weight:600">Pending</span>')+'</td>'
+        +'<td class="tc c-paid">'+(_displayPaymentStatus==='Paid'?'<span style="color:#15803d;font-weight:700">Paid</span>':_displayPaymentStatus==='Partial'?'<span title="Allocated ₹'+Math.round(_ps.applied).toLocaleString('en-IN')+' of ₹'+Math.round(_ps.net).toLocaleString('en-IN')+'" style="color:#b45309;font-weight:700">Partial</span>':'<span style="color:#b45309;font-weight:600">Pending</span>')+'</td>'
         +'<td class="tr sh">'+(c.sw>0?c.sw.toLocaleString('en-IN'):'—')+'</td>'
         +'<td class="tr ded c-shc">'+(c.sc>0?'\u20b9 '+Math.round(c.sc).toLocaleString('en-IN'):'—')+'</td>'
         +'<td class="tr c-moist">'+(c.inv&&c.inv>0?stripNum(r.moisture)+'%':'')+'</td>'
@@ -6157,8 +6290,8 @@ function _generateReportFromSelection(selectedReports){
       +'<td class="tr">'+T.grn.toLocaleString('en-IN')+'</td>'
       +'<td></td>'
       +'<td class="tc c-paid" style="font-size:8.5px;font-weight:700">'+(function(){
-        var pc=0; rows.forEach(function(rr){ if(rr.paid===true) pc++; });
-        return pc>0 ? '<span style="color:#15803d">'+pc+'/'+rows.length+'</span>' : '\u2014';
+        var pc=0, ppartial=0; rows.forEach(function(rr){ var ss=_contractPaymentStatus[rr.id]; if((rr.paidManualSet===true&&rr.paidManual===true)||(ss&&ss.status==='Paid')) pc++; else if(ss&&ss.status==='Partial') ppartial++; });
+        return (pc+ppartial)>0 ? '<span style="color:#15803d">'+pc+'/'+rows.length+'</span>'+(ppartial?'<span style="color:#b45309"> ('+ppartial+' partial)</span>':'') : '\u2014';
       }())+'</td>'
       +'<td class="tr sh">'+(T.sw>0?T.sw.toLocaleString('en-IN'):'—')+'</td>'
       +'<td class="tr ded c-shc">\u20b9 '+Math.round(T.sc).toLocaleString('en-IN')+'</td>'
