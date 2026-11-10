@@ -1350,6 +1350,13 @@ body.role-view #tBody input,body.role-view #tBody select{pointer-events:none !im
           </div>
           <datalist id="vendorMasterList"></datalist>
         </div>
+        <div class="field"><label>Division <span style="color:#dc2626">*</span></label>
+          <select id="fDivision" onchange="saveTab()" style="width:100%">
+            <option value="">— Select Division —</option>
+            <option value="Food">Food</option>
+            <option value="Feed">Feed</option>
+          </select>
+        </div>
         <div class="field"><label>Material</label><input type="text" id="fMaterial" list="materialMasterList" placeholder="e.g. DORB, Mustard Cake" onblur="rememberMaterial(this.value)"><datalist id="materialMasterList"></datalist></div>
         <div class="field"><label>Contract Type</label>
           <select id="fContractType" onchange="toggleContractType();recalcAll();syncHdr()">
@@ -3592,6 +3599,7 @@ function saveTab(){
   r.fVendor       = g('fVendor').value;
   if(typeof rememberVendor==='function') rememberVendor(r.fVendor);
   r.fMaterial     = g('fMaterial').value;
+  r.fDivision     = g('fDivision') ? g('fDivision').value : (r.fDivision||'');
   if(typeof rememberMaterial==='function') rememberMaterial(r.fMaterial);
   r.fContractQty  = g('fContractQty').value;
   r.fContractType = g('fContractType') ? g('fContractType').value : 'weight';
@@ -3661,6 +3669,7 @@ function loadTab(idx){
   g('fTitle').value       = r.fTitle      ||'';
   g('fVendor').value      = r.fVendor     ||'';
   g('fMaterial').value    = r.fMaterial   ||'';
+  if(g('fDivision')) g('fDivision').value = r.fDivision || '';
   g('fContractQty').value = r.fContractQty != null ? r.fContractQty : '';
   if(g('fContractType')) g('fContractType').value = r.fContractType||'weight';
   if(g('fTotalVehicles')) g('fTotalVehicles').value = r.fTotalVehicles != null ? r.fTotalVehicles : '';
@@ -4550,13 +4559,14 @@ function _buildAndDownloadExcel(rep){
   toast('\u2713 Excel exported: '+fname,'success');
 }
 
-function _generateExcelFromSelection(selectedReports){
+function _generateExcelFromSelection(selectedReports, divisionMode){
   var todayStr = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
   var html = '';
 
   // Title bar
   html += '<table style="width:100%"><tr><td class="title-bar" colspan="9">'
     +'AURO SUNDRAM FOODS AND FEEDS PVT. LTD.<br>'
+    +(divisionMode==='Combined'?'FOOD + FEED — COMBINED REPORT':divisionMode.toUpperCase()+' DIVISION')+'<br>'
     +'Contract Report — '+selectedReports.length+' Contract'+(selectedReports.length===1?'':'s')+' — '+todayStr
     +'</td></tr></table>';
 
@@ -4754,8 +4764,8 @@ function _generateExcelFromSelection(selectedReports){
 
   // Generate filename and download
   var d=new Date();
-  var dStr = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  var fname = 'ContractReport_'+selectedReports.length+'contracts_'+dStr+'.xls';
+  var dStr = String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getFullYear()).slice(-2);
+  var fname = 'Contract Report '+(divisionMode==='Combined'?'COMBINED':divisionMode.toUpperCase())+' '+dStr+'.xls';
   _excelDownload(html, fname);
   toast('Excel exported: '+fname,'success');
 }
@@ -4770,9 +4780,10 @@ function generateSelectedReportExcel(){
     toast('Select at least one contract','warn');
     return;
   }
-  var selected=indexes.map(function(i){ return reports[i]; });
+  var result=getDivisionFilteredSelection(indexes);
+  if(!result) return;
   closeContractSelectionModal();
-  _generateExcelFromSelection(selected);
+  _generateExcelFromSelection(result.items, result.mode);
 }
 
 
@@ -5716,6 +5727,7 @@ function addResizeHandles(){
 // ═══════════════════════════════════════
 function showContractSelectionModal(){
   var html='';
+  if(g('csDivision') && !g('csDivision').value) g('csDivision').value='Combined';
   if(!reports || reports.length===0){
     toast('No reports to include','warn');
     return;
@@ -5731,6 +5743,8 @@ function showContractSelectionModal(){
       if(rep.fTotalVehicles && +rep.fTotalVehicles>0) bits.push(rep.fTotalVehicles+' Vehicle'+(+rep.fTotalVehicles===1?'':'s'));
     } else if(rep.fContractQty && +rep.fContractQty>0) bits.push(rep.fContractQty+' '+(rep.fWtUnit||'KG'));
     if(rep.fRate) bits.push('\u20b9'+rep.fRate+'/'+(rep.fWtUnit||'KG'));
+    var divLabel=rep.fDivision ? String(rep.fDivision).toUpperCase() : 'DIVISION NOT SET';
+    bits.unshift(divLabel);
     var meta=bits.join(' \u00b7 ');
     var rowsLabel=rowCount+' truck'+(rowCount===1?'':'s');
     var emptyWarn=rowCount===0?' <span style="color:#dc2626;font-size:10.5px;font-weight:600">(empty)</span>':'';
@@ -5766,6 +5780,20 @@ function updateCsCount(){
   if(btn) btn.disabled=checked===0;
 }
 
+
+function getDivisionFilteredSelection(indexes){
+  var mode=(g('csDivision')&&g('csDivision').value)||'Combined';
+  var chosen=indexes.map(function(i){return reports[i];});
+  var missing=chosen.filter(function(r){return !r.fDivision || (r.fDivision!=='Food' && r.fDivision!=='Feed');});
+  if(missing.length){
+    toast(missing.length+' selected contract(s) have no Division. Open each contract, select Food or Feed, and save first.','warn');
+    return null;
+  }
+  var filtered=chosen.filter(function(r){return mode==='Combined' ? (r.fDivision==='Food'||r.fDivision==='Feed') : r.fDivision===mode;});
+  if(!filtered.length){ toast('No selected contracts found for '+mode+' division.','warn'); return null; }
+  return {items:filtered, mode:mode};
+}
+
 function generateSelectedReport(){
   var indexes=[];
   document.querySelectorAll('.cs-cb:checked').forEach(function(cb){
@@ -5775,9 +5803,10 @@ function generateSelectedReport(){
     toast('Select at least one contract','warn');
     return;
   }
-  var selected=indexes.map(function(i){ return reports[i]; });
+  var result=getDivisionFilteredSelection(indexes);
+  if(!result) return;
   closeContractSelectionModal();
-  _generateReportFromSelection(selected);
+  _generateReportFromSelection(result.items, result.mode);
 }
 
 // Entry point — shows the contract selection modal
@@ -5787,7 +5816,7 @@ function openContractReport(){
 }
 
 // Actual report builder — accepts array of report objects to include
-function _generateReportFromSelection(selectedReports){
+function _generateReportFromSelection(selectedReports, divisionMode){
   // Shadow the global "reports" with the selected subset
   var reports = selectedReports;
 
@@ -6479,9 +6508,9 @@ function _generateReportFromSelection(selectedReports){
     +'<img class="phdr-logo" src="'+LOGO_IMG+'" alt="Logo">'
     +'<div>'
     +'<div class="phdr-cimg-text">AURO SUNDRAM FOODS AND FEEDS PVT. LTD.</div>'
-    +'<div class="phdr-meta">Purchase Contract Report \u00b7 All Vendors \u00b7 '+reports.length+' Contracts</div>'
+    +'<div class="phdr-meta">Purchase Contract Report \u00b7 '+(divisionMode==='Combined'?'Food + Feed — Combined':divisionMode+' Division')+' \u00b7 '+reports.length+' Contracts</div>'
     +'</div></div>'
-    +'<div class="phdr-r"><div class="phdr-title">Contract Report</div>'
+    +'<div class="phdr-r"><div class="phdr-title">'+(divisionMode==='Combined'?'FOOD + FEED — COMBINED REPORT':divisionMode.toUpperCase()+' DIVISION')+'</div>'
     +'<div class="phdr-date">Generated: '+today+'</div>'
     +(function(){
       // Find first non-empty preparer name across selected reports
@@ -6599,7 +6628,7 @@ function _generateReportFromSelection(selectedReports){
     +'var mm=String(d.getMonth()+1).padStart(2,"0");'
     +'var yy=String(d.getFullYear()).slice(-2);'
     +'var origTitle=document.title;'
-    +'document.title="Contract Report ("+dd+"."+mm+"."+yy+")";'
+    +'document.title="Contract Report '+(divisionMode==='Combined'?'COMBINED':divisionMode.toUpperCase())+' "+dd+"."+mm+"."+yy;'
     +'window.addEventListener("afterprint",function(){document.title=origTitle;},{once:true});'
     +'setTimeout(function(){window.print();},80);'
     +'}'
@@ -6674,7 +6703,8 @@ function _generateReportFromSelection(selectedReports){
         +'html+=\'<tr class="tR"><td class="tR" colspan="4">TOTAL (\'+(rep.rows||[]).length+\' trucks)</td><td class="tR">\'+T.inv.toLocaleString("en-IN")+\'</td><td class="tR">\'+T.grn.toLocaleString("en-IN")+\'</td><td class="tR"></td><td class="cS"><b>\'+(T.sw>0?T.sw.toLocaleString("en-IN"):"\u2014")+\'</b></td>\'+(!hideClaim?\'<td class="cE"><b>\u20b9 \'+Math.round(T.sc).toLocaleString("en-IN")+\'</b></td>\'+(!hideMoist?\'<td class="tR"></td><td class="tR"></td>\':\'\')+\'<td class="cE"><b>\u20b9 \'+Math.round(T.qd).toLocaleString("en-IN")+\'</b></td>\':\'\')+(showLab?\'<td class="tR" colspan="4"></td>\':\'\')+\'</tr></table>\';'
       +'});'
       +'var d=new Date();var dStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");'
-      +'_excelDL(html,"ContractReport_"+reports.length+"contracts_"+dStr+".xls");'
+      +'var dd=String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getFullYear()).slice(-2);'
+      +'_excelDL(html,"Contract Report '+(divisionMode==='Combined'?'COMBINED':divisionMode.toUpperCase())+' "+dd+".xls");'
     +'}'
     +'function toggleLayoutPanel(){'
     +'var p=document.getElementById("layoutPanel");'
@@ -6849,6 +6879,12 @@ function _generateReportFromSelection(selectedReports){
     </div>
     <div class="mbody" style="flex:1;overflow-y:auto">
       <p class="help" style="margin-bottom:11px">Sirf selected contracts hi report mein aayenge. Empty tabs auto-deselect honge.</p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px;background:#f1f5f9;border-radius:8px">
+        <label for="csDivision" style="font-weight:700">Report Division</label>
+        <select id="csDivision" onchange="showContractSelectionModal()" style="min-width:180px;padding:7px;border:1px solid #cbd5e1;border-radius:6px">
+          <option value="Combined">Combined (Food + Feed)</option><option value="Food">Food only</option><option value="Feed">Feed only</option>
+        </select>
+      </div>
       <div class="cs-bar">
         <span id="csCount" style="font-weight:600;color:var(--text)">0 of 0 selected</span>
         <div style="display:flex;gap:6px">
@@ -6860,6 +6896,7 @@ function _generateReportFromSelection(selectedReports){
     </div>
     <div class="mfoot">
       <button class="btn btn-sec" onclick="closeContractSelectionModal()">Cancel</button>
+      <button class="btn btn-sec" id="csExcelBtn" onclick="generateSelectedReportExcel()">&#128229; Export Excel</button>
       <button class="btn btn-primary" id="csGenBtn" onclick="generateSelectedReport()">&#128196; Generate Report (PDF view)</button>
     </div>
   </div>
