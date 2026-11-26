@@ -2906,12 +2906,12 @@ function renderFoot(){
 //  STATS
 // ═══════════════════════════════════════
 function getStatVars(){
-  var T={inv_wt:0,grn_wt:0,shortage_wt:0,short_claim:0,qual_ded:0,tds:0};
+  var T={inv_wt:0,grn_wt:0,shortage_wt:0,short_claim:0,qual_ded:0,tds:0,inv_amt_rows:0};
   var _dedMode=getDedMode();
   rows.forEach(function(r){
     var c=calcRow(r);
     T.inv_wt+=+r.inv_wt||0; T.grn_wt+=+r.grn_wt||0;
-    T.shortage_wt+=c.shortage_wt; T.short_claim+=Math.round(c.short_claim||0); T.qual_ded+=Math.round(c.qual_ded); T.tds+=Math.round(c.tds||0); T.claimable_wt=(T.claimable_wt||0)+(c.claimable_wt||0);
+    T.inv_amt_rows+=c.invoice_amount||0; T.shortage_wt+=c.shortage_wt; T.short_claim+=Math.round(c.short_claim||0); T.qual_ded+=Math.round(c.qual_ded); T.tds+=Math.round(c.tds||0); T.claimable_wt=(T.claimable_wt||0)+(c.claimable_wt||0);
   });
   // If average mode, override qual_ded with the avg-based total
   if(_dedMode==='average'){
@@ -2923,7 +2923,7 @@ function getStatVars(){
   var gstPct=+g('fGST').value||0;
   var basicAmt=T.inv_wt*rpu;
   var gstAmt=basicAmt*(gstPct/100);
-  var invAmt=basicAmt+gstAmt;                       // Invoice = Basic + GST
+  var invAmt=T.inv_amt_rows;                      // Invoice = sum of bill-wise rounded invoice amounts (matches table total)
   // Keep summary TDS identical to the visible bill-wise TDS column: round each bill first, then sum.
   // Threshold crossing is allocated to the bill that crosses the threshold; later bills are taxed on full eligible amount.
   var _tdsThr = +g('fTDSThreshold').value||0;
