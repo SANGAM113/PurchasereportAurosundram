@@ -2911,7 +2911,7 @@ function getStatVars(){
   rows.forEach(function(r){
     var c=calcRow(r);
     T.inv_wt+=+r.inv_wt||0; T.grn_wt+=+r.grn_wt||0;
-    T.shortage_wt+=c.shortage_wt; T.short_claim+=c.short_claim; T.qual_ded+=Math.round(c.qual_ded); T.tds+=Math.round(c.tds||0); T.claimable_wt=(T.claimable_wt||0)+(c.claimable_wt||0);
+    T.shortage_wt+=c.shortage_wt; T.short_claim+=Math.round(c.short_claim||0); T.qual_ded+=Math.round(c.qual_ded); T.tds+=Math.round(c.tds||0); T.claimable_wt=(T.claimable_wt||0)+(c.claimable_wt||0);
   });
   // If average mode, override qual_ded with the avg-based total
   if(_dedMode==='average'){
